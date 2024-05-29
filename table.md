@@ -105,10 +105,10 @@ Notes:
 
 | instruction   | generated (gc)      |
 | ------------- | ------------------- |
-| RET f         | C0 \| (fc<<3)       |
-| CALL f,(expr) | C4 \| (fc<<3) nn nn |
-| JP f,(expr)   | C2 \| (fc<<3) nn nn |
-| JR f#,(expr)  | 20 \| (fc<<4) nn    |
+| RET f         | C0 \| (fc << 3)       |
+| CALL f,(expr) | C4 \| (fc << 3) nn nn |
+| JP f,(expr)   | C2 \| (fc << 3) nn nn |
+| JR f#,(expr)  | 20 \| (fc << 4) nn    |
 
 # Special handling
 
