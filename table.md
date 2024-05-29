@@ -1,67 +1,3 @@
-# 8-bit register mapping
-
-| r$       | rc  |
-| -------- | --- |
-| B        | 0   |
-| C        | 1   |
-| D        | 2   |
-| E        | 3   |
-| H        | 4   |
-| L        | 5   |
-| (HL)     | 6   |
-| A        | 7   |
-| (IXexpr) | 8   |
-| (IYexpr) | 9   |
-| (BC)     | 10  |
-| (DE)     | 11  |
-| I        | 12  |
-| R        | 13  |
-
-Notes:
-
-- r - any "register" in r$ except (IX*),(IY*),(BC),(DE)
-- r# - any "register" in r$ except (HL),(IX*),(IY*),(BC),(DE)
-- r% - only (BC),(DE)
-- r! - only I,R
-
-# 16-bit register mapping
-
-| rp$ | rc  |
-| --- | --- |
-| BC  | 0   |
-| DE  | 1   |
-| HL  | 2   |
-| SP  | 3   |
-| AF  | 3   |
-| AF' | 4   |
-
-Notes:
-
-- rp - any register pair in rp$ except AF'
-- rp# - any register pair in rp$ except HL,AF'
-
-# Flags
-
-| f   | fc  |
-| --- | --- |
-| NZ  | 0   |
-| Z   | 1   |
-| NC  | 2   |
-| C   | 3   |
-| PO  | 4   |
-| PE  | 5   |
-| P   | 6   |
-| M   | 7   |
-
-- f# - any flaf except PO,PE,P,M
-
-- expr: expression
-- n: a numeric expression
-
-- nn: 8-bit data
-- nn nn: 16-bit data
-- dd: 8-bit displacement
-
 # Classic 8-bit instructions
 
 | instruction | generated (gc)          |
@@ -248,3 +184,69 @@ Notes:
 | RRCA        | ED 0F          |
 | RRD         | ED 67          |
 | SCF         | 37             |
+
+---
+
+# Appendix
+
+- expr: expression
+- n: a numeric expression
+
+- nn: 8-bit data
+- nn nn: 16-bit data
+- dd: 8-bit displacement
+
+## Register mapping
+
+| r$       | rc  |
+| -------- | --- |
+| B        | 0   |
+| C        | 1   |
+| D        | 2   |
+| E        | 3   |
+| H        | 4   |
+| L        | 5   |
+| (HL)     | 6   |
+| A        | 7   |
+| (IXexpr) | 8   |
+| (IYexpr) | 9   |
+| (BC)     | 10  |
+| (DE)     | 11  |
+| I        | 12  |
+| R        | 13  |
+
+Notes:
+
+- r - except (IX*),(IY*),(BC),(DE),I,R
+- r# - except (HL),(IX*),(IY*),(BC),(DE),I,R
+
+## Register pair mapping
+
+| rp$ | rc  |
+| --- | --- |
+| BC  | 0   |
+| DE  | 1   |
+| HL  | 2   |
+| SP  | 3   |
+| AF  | 3   |
+| AF' | 4   |
+
+Notes:
+
+- rp - except AF'
+- rp# - except HL,AF'
+
+## Flag mapping
+
+| f   | fc  |
+| --- | --- |
+| NZ  | 0   |
+| Z   | 1   |
+| NC  | 2   |
+| C   | 3   |
+| PO  | 4   |
+| PE  | 5   |
+| P   | 6   |
+| M   | 7   |
+
+- f# - except PO,PE,P,M
