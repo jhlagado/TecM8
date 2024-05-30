@@ -166,76 +166,40 @@ start:                          ; start of TecM8
 
 interpret:
     call prompt
-
     ld bc,0                 ; load bc with offset into TIB, decide char into tib or execute or control         
     ld (vTIBPtr),bc
-
-interpret2:                 ; calc nesting 
-    ld E,0                  ; initilize nesting value
-    push bc                 ; save offset into TIB, 
-                            ; bc is also the count of chars in TIB
     ld hl,TIB               ; hl is start of TIB
-    jr interpret4
-
-interpret3:
-    ld a,(hl)               ; A = char in TIB
-    inc hl                  ; inc pointer into TIB
-    dec bc                  ; dec count of chars in TIB
-    call nesting            ; update nesting value
-
-interpret4:
-    ld a,C                  ; is count zero?
-    or B
-    jr NZ, interpret3       ; if not loop
-    pop bc                  ; restore offset into TIB
-
-interpret5:   
+interpret2:                 ; calc nesting 
     call getchar            ; loop around waiting for character from serial port
     cp $20			        ; compare to space
-    jr NC,interpret6		    ; if >= space, if below 20 set cary flag
-    cp $0                   ; is it end of string? null end of string
-    jr Z,interpret8
-    cp '\r'                 ; carriage return? ascii 13
-    jr Z,interpret7		    ; if anything else its control char
-    cp CTRL_H
-    jr nz,interpret2
+    jr C,interpret3		    ; if >= space, if below 20 set cary flag
+    ld (hl),A               ; store the character in textbuf
+    inc hl
+    inc bc
+    call putchar            ; echo character to screen
+    jr interpret2            ; wait for next character
 
-backSpace:
-    ld a,c
+interpret3:
+    cp '\r'                 ; carriage return? ascii 13
+    jr Z,interpret4		    ; if anything else its control char
+    cp '\n'                 ; carriage return? ascii 13
+    jr Z,interpret4		    ; if anything else its control char
+    cp CTRL_H               ; backSpace ?
+    jr nz,interpret2
+    ld a,c                  ; is bc at start of line?
     or b
     jr z, interpret2
+    dec hl
     dec bc
     call printStr
     .cstr "\b \b"
     jr interpret2
 
-interpret6:
-    ld hl,TIB
-    add hl,bc
-    ld (hl),A               ; store the character in textbuf
-    inc bc
-    call putchar            ; echo character to screen
-    call nesting
-    jr  interpret5            ; wait for next character
-
-interpret7:
-    ld hl,TIB
-    add hl,bc
-    ld (hl),"\r"            ; store the crlf in textbuf
-    inc hl
-    ld (hl),"\n"            
-    inc hl                  ; ????
-    inc bc
-    inc bc
+interpret4:
     call crlf               ; echo character to screen
-    ld a,E                  ; if zero nesting append and ETX after \r
-    or A
-    jr NZ,interpret5
-    ld (hl),$03             ; store end of text ETX in text buffer 
+    ld (hl),"\n"            ; store newline in text buffer 
+    inc hl                  
     inc bc
-
-interpret8:    
-    ld (vTIBPtr),bc
     ld bc,TIB               ; Instructions stored on heap at address HERE, we pressed enter
     dec bc
 
@@ -244,8 +208,8 @@ next:
     ld a,(bc)                   ; Get the next character and dispatch
     or a                        ; is it NUL?       
     jr z,exit
-    cp CTRL_C
-    jr z,etx
+    cp "\n"                     ; is it newline?
+    jr z,interpret
     cp "0"
     ld d,"!"
     jr c,op
@@ -282,14 +246,6 @@ exit:
     ld bc,hl
     EX de,hl
     jp (hl)
-
-etx:                                
-    ld hl,-DSTACK               ; check if stack pointer is underwater
-    add hl,sp
-    jr NC,etx1
-    ld sp,DSTACK
-etx1:
-    jp interpret
 
 num:
 	ld hl,$0000				    ; Clear hl to accept the number
