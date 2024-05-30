@@ -60,9 +60,9 @@ Notes:
 | SLA r       | CB 20 \| rc            |
 | SRA r       | CB 28 \| rc            |
 | SRL r       | CB 38 \| rc            |
-| BIT n,r     | CB 40 \| (b << 3)\| rc |
-| RES n,r     | CB 80 \| (b << 3)\| rc |
-| SET n,r     | CB C0 \| (b << 3)\| rc |
+| BIT n,r     | CB 40 \| (b << 3)\ | rc |
+| RES n,r     | CB 80 \| (b << 3)\ | rc |
+| SET n,r     | CB C0 \| (b << 3)\ | rc |
 
 Notes:
 
