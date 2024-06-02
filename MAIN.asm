@@ -166,49 +166,48 @@ start:                          ; start of TecM8
 
 interpret:
     call prompt
-    ld bc,0                 ; load bc with offset into TIB, decide char into tib or execute or control         
-    ld (vTIBPtr),bc
-    ld hl,TIB               ; hl is start of TIB
+    ld bc,TIB               ; load bc with offset into TIB, decide char into tib or execute or control         
 interpret2:                 ; calc nesting 
     call getchar            ; loop around waiting for character from serial port
     cp $20			        ; compare to space
     jr C,interpret3		    ; if >= space, if below 20 set cary flag
-    ld (hl),A               ; store the character in textbuf
-    inc hl
+    ld (bc),A               ; store the character in textbuf
     inc bc
     call putchar            ; echo character to screen
     jr interpret2            ; wait for next character
 
 interpret3:
-    cp '\r'                 ; carriage return? ascii 13
-    jr Z,interpret4		    ; if anything else its control char
-    cp '\n'                 ; carriage return? ascii 13
-    jr Z,interpret4		    ; if anything else its control char
+    ; cp '\r'                 ; carriage return? ascii 13
+    ; jr Z,interpret4		    ; if anything else its control char
+    ; cp '\n'                 ; carriage return? ascii 13
+    ; jr Z,interpret4		    ; if anything else its control char
     cp CTRL_H               ; backSpace ?
-    jr nz,interpret2
-    ld a,c                  ; is bc at start of line?
-    or b
-    jr z, interpret2
-    dec hl
+    jr nz,interpret2        ; no, ignore
+    ld hl,TIB               ; is bc at start of TIB
+    or a
+    sbc hl,bc
+    ld a,h                  ; is bc at start of TIB?
+    or l
+    jr z, interpret2        ; yes, ignore backspace
     dec bc
     call printStr
     .cstr "\b \b"
     jr interpret2
 
 interpret4:
-    call crlf               ; echo character to screen
-    ld (hl),"\n"            ; store newline in text buffer 
-    inc hl                  
-    inc bc
+    ld a,"\n"
+    ld (bc),a               ; store null in text buffer 
+    call crlf               ; echo newline to screen
+    jr interpret ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
     ld bc,TIB               ; Instructions stored on heap at address HERE, we pressed enter
     dec bc
-
 next:                           
-    inc bc                      ; Increment the IP
-    ld a,(bc)                   ; Get the next character and dispatch
-    or a                        ; is it NUL?       
+    inc bc                  ; Increment the IP
+    ld a,(bc)               ; Get the next character and dispatch
+    or a                    ; is it NUL?       
     jr z,exit
-    cp "\n"                     ; is it newline?
+    cp "\n"                 ; is it newline?
     jr z,interpret
     cp "0"
     ld d,"!"
@@ -339,46 +338,6 @@ lookupRef1:
     XOR a
     or e                        ; sets Z flag if A-Z
     ret
-
-; **************************************************************************             
-; calculate nesting value
-; A is char to be tested, 
-; E is the nesting value (initially 0)
-; E is increased by ( and [ 
-; E is decreased by ) and ]
-; E has its bit 7 toggled by `
-; limited to 127 levels
-; **************************************************************************             
-
-nesting:                        
-    cp '`'
-    jr NZ,nesting1
-    ld a,$80
-    xor e
-    ld e,a
-    ret
-nesting1:
-    BIT 7,E             
-    ret NZ             
-    cp ':'
-    jr Z,nesting2
-    cp '['
-    jr Z,nesting2
-    cp '('
-    jr NZ,nesting3
-nesting2:
-    inc E
-    ret
-nesting3:
-    cp ';'
-    jr Z,nesting4
-    cp ']'
-    jr Z,nesting4
-    cp ')'
-    ret NZ
-nesting4:
-    dec E
-    ret 
 
 prompt:                            
     call printStr

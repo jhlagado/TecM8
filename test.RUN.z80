@@ -11,7 +11,6 @@ buf1%%M:
     DB s1,$0D
 buf2%%M:
 .endm
-
     jp startTest
     
 testGetCharImpl:
@@ -29,7 +28,7 @@ startTest:
     ld HL,testGetCharImpl                       ; change getchar implmentation to use tbuf
     LD (GETCVEC),HL
     
-    testInput "3."
+    testInput "3\n2."
     JP interpret
 
 .include "MAIN.asm"

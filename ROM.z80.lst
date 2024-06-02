@@ -126,7 +126,7 @@
 0000                          .ORG   ROMSTART   
 0000                             ;reset
 0000                RSTVEC:      
-0000   C3 8B 00               JP   RESET   
+0000   C3 8D 00               JP   RESET   
 0003                             ;RST 1
 0008                          .ORG   ROMSTART+$08   
 0008   E5                     PUSH   HL   
@@ -458,47 +458,49 @@
 0081                          ENDIF      
 0081                             ; 
 0081                GETCHAR:      
-0081   2A 18 0A               LD   HL,(GETCVEC)   
-0084   E9                     JP   (HL)   
-0085                             ; 
-0085                PUTCHAR:      
-0085   E5                     PUSH   HL   
-0086   2A 1A 0A               LD   HL,(PUTCVEC)   
-0089   E3                     EX   (SP),HL   
-008A   C9                     RET      
-008B                             ; 
-008B                RESET:       
-008B   31 00 0A               LD   SP,stack   
-008E   21 5F 00               LD   HL,IntRet   
-0091   22 06 0A               LD   (RST08),HL   
-0094   22 08 0A               LD   (RST10),HL   
-0097   22 0A 0A               LD   (RST18),HL   
-009A   22 0C 0A               LD   (RST20),HL   
-009D   22 0E 0A               LD   (RST28),HL   
-00A0   22 10 0A               LD   (RST30),HL   
-00A3   22 14 0A               LD   (INTVEC),HL   
-00A6   22 16 0A               LD   (NMIVEC),HL   
-00A9                             ; 
-00A9   21 78 00               LD   HL,RXDATA   
-00AC   22 18 0A               LD   (GETCVEC),HL   
-00AF   21 6B 00               LD   HL,TXDATA   
-00B2   22 1A 0A               LD   (PUTCVEC),HL   
-00B5                             ; 
-00B5                          IF   TEC_1   
-00B5                          IF   BITBANG = 0   
-00B5                             ; 
-00B5   3E 03                  LD   a,MRESET   
-00B7   D3 80                  OUT   (CONTROL),a   ;reset the ACIA
-00B9                             ; 
-00B9                          ENDIF      
-00B9                          ENDIF      
-00B9                             ; 
-00B9   CD 50 00               CALL   PWRUP   
-00BC   ED 56                  IM   1   
-00BE   FB                     EI      
-00BF                             ; 
-00BF                          IF   TEC_1   
-00BF                          IF   BITBANG   
+0081   E5                     PUSH   HL   
+0082   2A 18 0A               LD   HL,(GETCVEC)   
+0085   E3                     EX   (SP),HL   
+0086   C9                     RET      
+0087                             ; 
+0087                PUTCHAR:      
+0087   E5                     PUSH   HL   
+0088   2A 1A 0A               LD   HL,(PUTCVEC)   
+008B   E3                     EX   (SP),HL   
+008C   C9                     RET      
+008D                             ; 
+008D                RESET:       
+008D   31 00 0A               LD   SP,stack   
+0090   21 5F 00               LD   HL,IntRet   
+0093   22 06 0A               LD   (RST08),HL   
+0096   22 08 0A               LD   (RST10),HL   
+0099   22 0A 0A               LD   (RST18),HL   
+009C   22 0C 0A               LD   (RST20),HL   
+009F   22 0E 0A               LD   (RST28),HL   
+00A2   22 10 0A               LD   (RST30),HL   
+00A5   22 14 0A               LD   (INTVEC),HL   
+00A8   22 16 0A               LD   (NMIVEC),HL   
+00AB                             ; 
+00AB   21 78 00               LD   HL,RXDATA   
+00AE   22 18 0A               LD   (GETCVEC),HL   
+00B1   21 6B 00               LD   HL,TXDATA   
+00B4   22 1A 0A               LD   (PUTCVEC),HL   
+00B7                             ; 
+00B7                          IF   TEC_1   
+00B7                          IF   BITBANG = 0   
+00B7                             ; 
+00B7   3E 03                  LD   a,MRESET   
+00B9   D3 80                  OUT   (CONTROL),a   ;reset the ACIA
+00BB                             ; 
+00BB                          ENDIF      
+00BB                          ENDIF      
+00BB                             ; 
+00BB   CD 50 00               CALL   PWRUP   
+00BE   ED 56                  IM   1   
+00C0   FB                     EI      
+00C1                             ; 
+00C1                          IF   TEC_1   
+00C1                          IF   BITBANG   
                                  ; 
                                  ;inline serial initialisation
                               LD   A,$40   
@@ -507,40 +509,40 @@
                               LD   HL,B4800   
                               LD   (BAUD),HL   
                                  ; 
-00BF                          ELSE      ;6850      
-00BF                             ; 
-00BF   3E 12                  LD   a,RTSLID+F8N2+DIV_64   
-00C1   D3 80                  OUT   (CONTROL),a   ;initialise ACIA  8 bit word, No parity 2 stop divide by 64 for 115200 baud
-00C3                             ; 
-00C3                          ENDIF      
-00C3                          ENDIF      
-00C3                             ; 
-00C3                             ; 
-00C3                             ; 
-00C3   C3 5F 02               JP   start   ; into #180 of the prog
-00C6                             ; 
-00C6                             ; *************************************************************************
-00C6                             ; 
-00C6                             ;       TecM8 1.0 Assembler for the Tec-1
-00C6                             ; 
-00C6                             ;       John Hardy
-00C6                             ;       incorporates code by Ken Boak and Craig Jones
-00C6                             ; 
-00C6                             ;       GNU GENERAL PUBLIC LICENSE                   Version 3, 29 June 2007
-00C6                             ; 
-00C6                             ;       see the LICENSE file in this repo for more information
-00C6                             ; 
-00C6                             ; *****************************************************************************
-00C6                             ; **************************************************************************
-00C6                             ; Constants
-00C6                             ; **************************************************************************
-00C6                TRUE:     EQU   -1   
-00C6                FALSE:    EQU   0   
-00C6                CTRL_C:   EQU   3   
-00C6                CTRL_H:   EQU   8   
-00C6                             ; **************************************************************************
-00C6                             ; Page 0  Initialisation
-00C6                             ; **************************************************************************		
+00C1                          ELSE      ;6850      
+00C1                             ; 
+00C1   3E 12                  LD   a,RTSLID+F8N2+DIV_64   
+00C3   D3 80                  OUT   (CONTROL),a   ;initialise ACIA  8 bit word, No parity 2 stop divide by 64 for 115200 baud
+00C5                             ; 
+00C5                          ENDIF      
+00C5                          ENDIF      
+00C5                             ; 
+00C5                             ; 
+00C5                             ; 
+00C5   C3 5F 02               JP   start   ; into #180 of the prog
+00C8                             ; 
+00C8                             ; *************************************************************************
+00C8                             ; 
+00C8                             ;       TecM8 1.0 Assembler for the Tec-1
+00C8                             ; 
+00C8                             ;       John Hardy
+00C8                             ;       incorporates code by Ken Boak and Craig Jones
+00C8                             ; 
+00C8                             ;       GNU GENERAL PUBLIC LICENSE                   Version 3, 29 June 2007
+00C8                             ; 
+00C8                             ;       see the LICENSE file in this repo for more information
+00C8                             ; 
+00C8                             ; *****************************************************************************
+00C8                             ; **************************************************************************
+00C8                             ; Constants
+00C8                             ; **************************************************************************
+00C8                TRUE:     EQU   -1   
+00C8                FALSE:    EQU   0   
+00C8                CTRL_C:   EQU   3   
+00C8                CTRL_H:   EQU   8   
+00C8                             ; **************************************************************************
+00C8                             ; Page 0  Initialisation
+00C8                             ; **************************************************************************		
 0180                          .ORG   ROMSTART + $180   ; 0+180 put TecM8 code from here	
 0180                OPCODES:      
 0180   02                     DB   lsb(bang_)   ;   !
@@ -630,24 +632,24 @@
 021E   FD E9                  JP   (iy)   
 0220                DOT_:        
 0220   E1                     POP   hl   
-0221   CD 20 04               CALL   printDec   
+0221   CD C1 03               CALL   printDec   
 0224                DOT2:        
 0224   3E 20                  LD   a," "   
-0226   CD 85 00               CALL   putChar   
+0226   CD 87 00               CALL   putChar   
 0229   FD E9                  JP   (iy)   
 022B                SEMI_:       
 022B   DD 2A 9C 0B            LD   ix,(vBasePtr)   ; 
-022F   CD 02 04               CALL   rpop   ; Restore old base pointer
+022F   CD A3 03               CALL   rpop   ; Restore old base pointer
 0232   22 9C 0B               LD   (vBasePtr),hl   
-0235   CD 02 04               CALL   rpop   ; Restore Instruction pointer
+0235   CD A3 03               CALL   rpop   ; Restore Instruction pointer
 0238   44 4D                  LD   bc,hl   
 023A   FD E9                  JP   (iy)   
 023C                COLON_:      
-023C   C3 68 04               JP   def   
+023C   C3 09 04               JP   def   
 023F                INIT:        
 023F   DD 21 80 09            LD   ix,RSTACK   
 0243   DD 22 9C 0B            LD   (vBasePtr),ix   
-0247   FD 21 DE 02            LD   iy,next   ; iy provides a faster jump to next
+0247   FD 21 B2 02            LD   iy,next   ; iy provides a faster jump to next
 024B   21 00 0B               LD   hl,vars   
 024E   54 5D                  LD   de,hl   
 0250   13                     INC   de   
@@ -660,376 +662,300 @@
 025F                START:       ; start of TecM8
 025F   31 00 0A               LD   sp,DSTACK   
 0262   CD 3F 02               CALL   init   
-0265   CD E7 03               CALL   printStr   ; prog count to stack, put code line 235 on stack then call print
+0265   CD 88 03               CALL   printStr   ; prog count to stack, put code line 235 on stack then call print
 0268   54 65 63 4D 38 20 30 2E 30 0D 0A 00 .CSTR   "TecM8 0.0\r\n"   
 0274                INTERPRET:      
-0274   CD D7 03               CALL   prompt   
-0277   01 00 00               LD   bc,0   ; load bc with offset into TIB, decide char into tib or execute or control
-027A   ED 43 7C 0B            LD   (vTIBPtr),bc   
-027E                INTERPRET2:      ; calc nesting
-027E   1E 00                  LD   E,0   ; initilize nesting value
-0280   C5                     PUSH   bc   ; save offset into TIB,
-0281                             ; bc is also the count of chars in TIB
-0281   21 00 08               LD   hl,TIB   ; hl is start of TIB
-0284   18 06                  JR   interpret4   
-0286                INTERPRET3:      
-0286   7E                     LD   a,(hl)   ; A = char in TIB
-0287   23                     INC   hl   ; inc pointer into TIB
-0288   0B                     DEC   bc   ; dec count of chars in TIB
-0289   CD B0 03               CALL   nesting   ; update nesting value
-028C                INTERPRET4:      
-028C   79                     LD   a,C   ; is count zero?
-028D   B0                     OR   B   
-028E   20 F6                  JR   NZ,interpret3   ; if not loop
-0290   C1                     POP   bc   ; restore offset into TIB
-0291                INTERPRET5:      
-0291   CD 81 00               CALL   getchar   ; loop around waiting for character from serial port
-0294   FE 20                  CP   $20   ; compare to space
-0296   30 1A                  JR   NC,interpret6   ; if >= space, if below 20 set cary flag
-0298   FE 00                  CP   $0   ; is it end of string? null end of string
-029A   28 3A                  JR   Z,interpret8   
-029C   FE 0D                  CP   "\r"   ; carriage return? ascii 13
-029E   28 20                  JR   Z,interpret7   ; if anything else its control char
-02A0   FE 08                  CP   CTRL_H   
-02A2   20 DA                  JR   nz,interpret2   
-02A4                BACKSPACE:      
-02A4   79                     LD   a,c   
-02A5   B0                     OR   b   
-02A6   28 D6                  JR   z,interpret2   
-02A8   0B                     DEC   bc   
-02A9   CD E7 03               CALL   printStr   
-02AC   08 20 08 00            .CSTR   "\b \b"   
-02B0   18 CC                  JR   interpret2   
-02B2                INTERPRET6:      
-02B2   21 00 08               LD   hl,TIB   
-02B5   09                     ADD   hl,bc   
-02B6   77                     LD   (hl),A   ; store the character in textbuf
-02B7   03                     INC   bc   
-02B8   CD 85 00               CALL   putchar   ; echo character to screen
-02BB   CD B0 03               CALL   nesting   
-02BE   18 D1                  JR   interpret5   ; wait for next character
-02C0                INTERPRET7:      
-02C0   21 00 08               LD   hl,TIB   
-02C3   09                     ADD   hl,bc   
-02C4   36 0D                  LD   (hl),"\r"   ; store the crlf in textbuf
-02C6   23                     INC   hl   
-02C7   36 0A                  LD   (hl),"\n"   
-02C9   23                     INC   hl   ; ????
-02CA   03                     INC   bc   
-02CB   03                     INC   bc   
-02CC   CD E0 03               CALL   crlf   ; echo character to screen
-02CF   7B                     LD   a,E   ; if zero nesting append and ETX after \r
-02D0   B7                     OR   A   
-02D1   20 BE                  JR   NZ,interpret5   
-02D3   36 03                  LD   (hl),$03   ; store end of text ETX in text buffer
-02D5   03                     INC   bc   
-02D6                INTERPRET8:      
-02D6   ED 43 7C 0B            LD   (vTIBPtr),bc   
-02DA   01 00 08               LD   bc,TIB   ; Instructions stored on heap at address HERE, we pressed enter
-02DD   0B                     DEC   bc   
-02DE                NEXT:        
-02DE   03                     INC   bc   ; Increment the IP
-02DF   0A                     LD   a,(bc)   ; Get the next character and dispatch
-02E0   B7                     OR   a   ; is it NUL?
-02E1   28 30                  JR   z,exit   
-02E3   FE 03                  CP   CTRL_C   
-02E5   28 40                  JR   z,etx   
-02E7   FE 30                  CP   "0"   
-02E9   16 21                  LD   d,"!"   
-02EB   38 1B                  JR   c,op   
-02ED   FE 3A                  CP   "9"+1   
-02EF   38 42                  JR   c,num   
-02F1   FE 41                  CP   "A"   
-02F3   16 2B                  LD   d,"!"+10   
-02F5   38 11                  JR   c,op   
-02F7   FE 5B                  CP   "Z"+1   
-02F9   38 67                  JR   c,callx   
-02FB   FE 61                  CP   "a"   
-02FD   16 45                  LD   d,"!"+10+26   
-02FF   38 07                  JR   c,op   
-0301   FE 7B                  CP   "z"+1   
-0303   DA 86 03               JP   c,var   
-0306   16 5F                  LD   d,"!"+10+26+26   
-0308                OP:          
-0308   92                     SUB   d   
-0309   38 D3                  JR   c,next   
-030B   C6 80                  ADD   a,lsb(opcodes)   
-030D   6F                     LD   l,A   ; Index into table
-030E   26 01                  LD   h,msb(opcodes)   ; Start address of jump table
-0310   6E                     LD   l,(hl)   ; get low jump address
-0311   24                     INC   h   ; msb on next page
-0312   E9                     JP   (hl)   ; Jump to routine
-0313                EXIT:        
-0313   03                     INC   bc   ; store offests into a table of bytes, smaller
-0314   50 59                  LD   de,bc   
-0316   DD 2A 9C 0B            LD   ix,(vBasePtr)   ; 
-031A   CD 02 04               CALL   rpop   ; Restore old base pointer
-031D   22 9C 0B               LD   (vBasePtr),hl   
-0320   CD 02 04               CALL   rpop   ; Restore Instruction pointer
-0323   44 4D                  LD   bc,hl   
-0325   EB                     EX   de,hl   
-0326   E9                     JP   (hl)   
-0327                ETX:         
-0327   21 00 F6               LD   hl,-DSTACK   ; check if stack pointer is underwater
-032A   39                     ADD   hl,sp   
-032B   30 03                  JR   NC,etx1   
-032D   31 00 0A               LD   sp,DSTACK   
-0330                ETX1:        
-0330   C3 74 02               JP   interpret   
-0333                NUM:         
-0333   21 00 00               LD   hl,$0000   ; Clear hl to accept the number
-0336   FE 2D                  CP   "-"   
-0338   20 01                  JR   nz,num0   
-033A   03                     INC   bc   ; move to next char, no flags affected
-033B                NUM0:        
-033B   08                     EX   af,af'   ; save zero flag = 0 for later
-033C                NUM1:        
-033C   0A                     LD   a,(bc)   ; read digit
-033D   D6 30                  SUB   "0"   ; less than 0?
-033F   38 13                  JR   c,num2   ; not a digit, exit loop
-0341   FE 0A                  CP   10   ; greater that 9?
-0343   30 0F                  JR   nc,num2   ; not a digit, exit loop
-0345   03                     INC   bc   ; inc IP
-0346   54 5D                  LD   de,hl   ; multiply hl * 10
-0348   29                     ADD   hl,hl   
-0349   29                     ADD   hl,hl   
-034A   19                     ADD   hl,de   
-034B   29                     ADD   hl,hl   
-034C   85                     ADD   a,l   ; add digit in a to hl
-034D   6F                     LD   l,a   
-034E   3E 00                  LD   a,0   
-0350   8C                     ADC   a,h   
-0351   67                     LD   h,a   
-0352   18 E8                  JR   num1   
-0354                NUM2:        
-0354   0B                     DEC   bc   
-0355   08                     EX   af,af'   ; restore zero flag
-0356   20 07                  JR   nz,num3   
-0358   EB                     EX   de,hl   ; negate the value of hl
-0359   21 00 00               LD   hl,0   
-035C   B7                     OR   a   ; jump to sub2
-035D   ED 52                  SBC   hl,de   
-035F                NUM3:        
-035F   E5                     PUSH   hl   ; Put the number on the stack
-0360   FD E9                  JP   (iy)   ; and process the next character
-0362                CALLX:       
-0362   CD 9D 03               CALL   lookupRef0   
-0365   5E                     LD   E,(hl)   
-0366   23                     INC   hl   
-0367   56                     LD   D,(hl)   
-0368   7A                     LD   a,D   ; skip if destination address is null
-0369   B3                     OR   E   
-036A   28 18                  JR   Z,call2   
-036C   60 69                  LD   hl,bc   
-036E   03                     INC   bc   ; read next char from source
-036F   0A                     LD   a,(bc)   ; if ; to tail call optimise
-0370   FE 3B                  CP   ";"   ; by jumping to rather than calling destination
-0372   28 0D                  JR   Z,call1   
-0374   CD F7 03               CALL   rpush   ; save Instruction Pointer
-0377   2A 9C 0B               LD   hl,(vBasePtr)   
-037A   CD F7 03               CALL   rpush   
-037D   DD 22 9C 0B            LD   (vBasePtr),ix   
-0381                CALL1:       
-0381   42 4B                  LD   bc,de   
-0383   0B                     DEC   bc   
-0384                CALL2:       
-0384   FD E9                  JP   (iy)   
-0386                VAR:         
-0386   21 00 0B               LD   hl,vars   
-0389   CD A4 03               CALL   lookupRef   
-038C                VAR1:        
-038C   22 9E 0B               LD   (vPointer),hl   
-038F   16 00                  LD   d,0   
-0391   5E                     LD   e,(hl)   
-0392   3A 6A 0B               LD   a,(vByteMode)   
-0395   3C                     INC   a   ; is it byte?
-0396   28 02                  JR   z,var2   
-0398   23                     INC   hl   
-0399   56                     LD   d,(hl)   
-039A                VAR2:        
-039A   D5                     PUSH   de   
-039B   FD E9                  JP   (iy)   
-039D                LOOKUPREF0:      
-039D   21 34 0B               LD   hl,defs   
-03A0   D6 41                  SUB   "A"   
-03A2   18 02                  JR   lookupRef1   
-03A4                LOOKUPREF:      
-03A4   D6 61                  SUB   "a"   
-03A6                LOOKUPREF1:      
-03A6   87                     ADD   a,a   
-03A7   85                     ADD   a,l   
-03A8   6F                     LD   l,a   
-03A9   3E 00                  LD   a,0   
-03AB   8C                     ADC   a,h   
-03AC   67                     LD   h,a   
-03AD   AF                     XOR   a   
-03AE   B3                     OR   e   ; sets Z flag if A-Z
-03AF   C9                     RET      
-03B0                             ; **************************************************************************
-03B0                             ; calculate nesting value
-03B0                             ; A is char to be tested,
-03B0                             ; E is the nesting value (initially 0)
-03B0                             ; E is increased by ( and [
-03B0                             ; E is decreased by ) and ]
-03B0                             ; E has its bit 7 toggled by `
-03B0                             ; limited to 127 levels
-03B0                             ; **************************************************************************
-03B0                NESTING:      
-03B0   FE 60                  CP   "`"   
-03B2   20 05                  JR   NZ,nesting1   
-03B4   3E 80                  LD   a,$80   
-03B6   AB                     XOR   e   
-03B7   5F                     LD   e,a   
-03B8   C9                     RET      
-03B9                NESTING1:      
-03B9   CB 7B                  BIT   7,E   
-03BB   C0                     RET   NZ   
-03BC   FE 3A                  CP   ":"   
-03BE   28 08                  JR   Z,nesting2   
-03C0   FE 5B                  CP   "["   
-03C2   28 04                  JR   Z,nesting2   
-03C4   FE 28                  CP   "("   
-03C6   20 02                  JR   NZ,nesting3   
-03C8                NESTING2:      
-03C8   1C                     INC   E   
-03C9   C9                     RET      
-03CA                NESTING3:      
-03CA   FE 3B                  CP   ";"   
-03CC   28 07                  JR   Z,nesting4   
-03CE   FE 5D                  CP   "]"   
-03D0   28 03                  JR   Z,nesting4   
-03D2   FE 29                  CP   ")"   
-03D4   C0                     RET   NZ   
-03D5                NESTING4:      
-03D5   1D                     DEC   E   
-03D6   C9                     RET      
-03D7                PROMPT:      
-03D7   CD E7 03               CALL   printStr   
-03DA   0D 0A 3E 20 00         .CSTR   "\r\n> "   
-03DF   C9                     RET      
-03E0                CRLF:        
-03E0   CD E7 03               CALL   printStr   
-03E3   0D 0A 00               .CSTR   "\r\n"   
-03E6   C9                     RET      
-03E7                PRINTSTR:      
-03E7   E3                     EX   (sp),hl   ; swap			
-03E8   CD F2 03               CALL   putStr   
-03EB   23                     INC   hl   ; inc past null
-03EC   E3                     EX   (sp),hl   ; put it back	
-03ED   C9                     RET      
-03EE                PUTSTR0:      
-03EE   CD 85 00               CALL   putchar   
-03F1   23                     INC   hl   
-03F2                PUTSTR:      
-03F2   7E                     LD   a,(hl)   
-03F3   B7                     OR   A   
-03F4   20 F8                  JR   NZ,putStr0   
-03F6   C9                     RET      
-03F7                RPUSH:       
-03F7   DD 2B                  DEC   ix   
-03F9   DD 74 00               LD   (ix+0),H   
-03FC   DD 2B                  DEC   ix   
-03FE   DD 75 00               LD   (ix+0),L   
-0401   C9                     RET      
-0402                RPOP:        
-0402   DD 6E 00               LD   L,(ix+0)   
-0405   DD 23                  INC   ix   
-0407   DD 66 00               LD   H,(ix+0)   
-040A   DD 23                  INC   ix   
-040C                RPOP2:       
-040C   C9                     RET      
-040D                ENTER:       
-040D   60 69                  LD   hl,bc   
-040F   CD F7 03               CALL   rpush   ; save Instruction Pointer
-0412   2A 9C 0B               LD   hl,(vBasePtr)   
-0415   CD F7 03               CALL   rpush   
-0418   DD 22 9C 0B            LD   (vBasePtr),ix   
-041C   C1                     POP   bc   
-041D   0B                     DEC   bc   
-041E   FD E9                  JP   (iy)   
-0420                             ; hl = value
-0420                PRINTDEC:      
-0420   CB 7C                  BIT   7,h   
-0422   28 0B                  JR   z,printDec2   
-0424   3E 2D                  LD   a,"-"   
-0426   CD 85 00               CALL   putchar   
-0429   AF                     XOR   a   
-042A   95                     SUB   l   
-042B   6F                     LD   l,a   
-042C   9F                     SBC   a,a   
-042D   94                     SUB   h   
-042E   67                     LD   h,a   
-042F                PRINTDEC2:      
-042F   C5                     PUSH   bc   
-0430   0E 00                  LD   c,0   ; leading zeros flag = false
-0432   11 F0 D8               LD   de,-10000   
-0435   CD 51 04               CALL   printDec4   
-0438   11 18 FC               LD   de,-1000   
-043B   CD 51 04               CALL   printDec4   
-043E   11 9C FF               LD   de,-100   
-0441   CD 51 04               CALL   printDec4   
-0444   1E F6                  LD   e,-10   
-0446   CD 51 04               CALL   printDec4   
-0449   0C                     INC   c   ; flag = true for at least digit
-044A   1E FF                  LD   e,-1   
-044C   CD 51 04               CALL   printDec4   
-044F   C1                     POP   bc   
-0450   C9                     RET      
-0451                PRINTDEC4:      
-0451   06 2F                  LD   b,"0"-1   
-0453                PRINTDEC5:      
-0453   04                     INC   b   
-0454   19                     ADD   hl,de   
-0455   38 FC                  JR   c,printDec5   
-0457   ED 52                  SBC   hl,de   
-0459   3E 30                  LD   a,"0"   
-045B   B8                     CP   b   
-045C   20 05                  JR   nz,printDec6   
-045E   AF                     XOR   a   
-045F   B1                     OR   c   
-0460   C8                     RET   z   
-0461   18 01                  JR   printDec7   
-0463                PRINTDEC6:      
-0463   0C                     INC   c   
-0464                PRINTDEC7:      
-0464   78                     LD   a,b   
-0465   C3 85 00               JP   putchar   
-0468                DEF:         ; Create a colon definition
-0468   03                     INC   bc   
-0469   0A                     LD   a,(bc)   ; Get the next character
-046A   FE 3A                  CP   ":"   ; is it anonymouse
-046C   20 08                  JR   nz,def0   
-046E   03                     INC   bc   
-046F   ED 5B 76 0B            LD   de,(vHeapPtr)   ; return start of definition
-0473   D5                     PUSH   de   
-0474   18 0B                  JR   def1   
-0476                DEF0:        
-0476   CD 9D 03               CALL   lookupRef0   
-0479   ED 5B 76 0B            LD   de,(vHeapPtr)   ; start of defintion
-047D   73                     LD   (hl),E   ; Save low byte of address in CFA
-047E   23                     INC   hl   
-047F   72                     LD   (hl),D   ; Save high byte of address in CFA+1
-0480   03                     INC   bc   
-0481                DEF1:        ; Skip to end of definition
-0481   0A                     LD   a,(bc)   ; Get the next character
-0482   03                     INC   bc   ; Point to next character
-0483   12                     LD   (de),A   
-0484   13                     INC   de   
-0485   FE 3B                  CP   ";"   ; Is it a semicolon
-0487   28 02                  JR   Z,def2   ; end the definition
-0489   18 F6                  JR   def1   ; get the next element
-048B                DEF2:        
-048B   0B                     DEC   bc   
-048C                DEF3:        
-048C   ED 53 76 0B            LD   (vHeapPtr),de   ; bump heap ptr to after definiton
-0490   FD E9                  JP   (iy)   
-0492                             ; *******************************************************************************
-0492                             ; *********  END OF MAIN   ******************************************************
-0492                             ; *******************************************************************************
-0492                DSIZE:    EQU   $80   
-0492                RSIZE:    EQU   $80   
-0492                TIBSIZE:   EQU   $100   ; 256 bytes , along line!
-0492                VARS_SIZE:   EQU   26*2   
+0274   CD 78 03               CALL   prompt   
+0277   01 00 08               LD   bc,TIB   ; load bc with offset into TIB, decide char into tib or execute or control
+027A                INTERPRET2:      ; calc nesting
+027A   CD 81 00               CALL   getchar   ; loop around waiting for character from serial port
+027D   FE 20                  CP   $20   ; compare to space
+027F   38 07                  JR   C,interpret3   ; if >= space, if below 20 set cary flag
+0281   02                     LD   (bc),A   ; store the character in textbuf
+0282   03                     INC   bc   
+0283   CD 87 00               CALL   putchar   ; echo character to screen
+0286   18 F2                  JR   interpret2   ; wait for next character
+0288                INTERPRET3:      
+0288   FE 0D                  CP   "\r"   ; carriage return? ascii 13
+028A   28 1C                  JR   Z,interpret4   ; if anything else its control char
+028C   FE 0A                  CP   "\n"   ; carriage return? ascii 13
+028E   28 18                  JR   Z,interpret4   ; if anything else its control char
+0290   FE 08                  CP   CTRL_H   ; backSpace ?
+0292   20 E6                  JR   nz,interpret2   
+0294   21 00 08               LD   hl,TIB   ; is bc at start of TIB
+0297   B7                     OR   a   
+0298   ED 42                  SBC   hl,bc   
+029A   7C                     LD   a,h   ; is bc at start of TIB?
+029B   B5                     OR   l   
+029C   28 DC                  JR   z,interpret2   
+029E   0B                     DEC   bc   
+029F   CD 88 03               CALL   printStr   
+02A2   08 20 08 00            .CSTR   "\b \b"   
+02A6   18 D2                  JR   interpret2   
+02A8                INTERPRET4:      
+02A8   3E 0A                  LD   a,"\n"   
+02AA   02                     LD   (bc),a   ; store null in text buffer
+02AB   CD 81 03               CALL   crlf   ; echo newline to screen
+02AE   01 00 08               LD   bc,TIB   ; Instructions stored on heap at address HERE, we pressed enter
+02B1   0B                     DEC   bc   
+02B2                NEXT:        
+02B2   03                     INC   bc   ; Increment the IP
+02B3   0A                     LD   a,(bc)   ; Get the next character and dispatch
+02B4   B7                     OR   a   ; is it NUL?
+02B5   28 30                  JR   z,exit   
+02B7   FE 0A                  CP   "\n"   ; is it newline?
+02B9   28 B9                  JR   z,interpret   
+02BB   FE 30                  CP   "0"   
+02BD   16 21                  LD   d,"!"   
+02BF   38 1B                  JR   c,op   
+02C1   FE 3A                  CP   "9"+1   
+02C3   38 36                  JR   c,num   
+02C5   FE 41                  CP   "A"   
+02C7   16 2B                  LD   d,"!"+10   
+02C9   38 11                  JR   c,op   
+02CB   FE 5B                  CP   "Z"+1   
+02CD   38 5B                  JR   c,callx   
+02CF   FE 61                  CP   "a"   
+02D1   16 45                  LD   d,"!"+10+26   
+02D3   38 07                  JR   c,op   
+02D5   FE 7B                  CP   "z"+1   
+02D7   DA 4E 03               JP   c,var   
+02DA   16 5F                  LD   d,"!"+10+26+26   
+02DC                OP:          
+02DC   92                     SUB   d   
+02DD   38 D3                  JR   c,next   
+02DF   C6 80                  ADD   a,lsb(opcodes)   
+02E1   6F                     LD   l,A   ; Index into table
+02E2   26 01                  LD   h,msb(opcodes)   ; Start address of jump table
+02E4   6E                     LD   l,(hl)   ; get low jump address
+02E5   24                     INC   h   ; msb on next page
+02E6   E9                     JP   (hl)   ; Jump to routine
+02E7                EXIT:        
+02E7   03                     INC   bc   ; store offests into a table of bytes, smaller
+02E8   50 59                  LD   de,bc   
+02EA   DD 2A 9C 0B            LD   ix,(vBasePtr)   ; 
+02EE   CD A3 03               CALL   rpop   ; Restore old base pointer
+02F1   22 9C 0B               LD   (vBasePtr),hl   
+02F4   CD A3 03               CALL   rpop   ; Restore Instruction pointer
+02F7   44 4D                  LD   bc,hl   
+02F9   EB                     EX   de,hl   
+02FA   E9                     JP   (hl)   
+02FB                NUM:         
+02FB   21 00 00               LD   hl,$0000   ; Clear hl to accept the number
+02FE   FE 2D                  CP   "-"   
+0300   20 01                  JR   nz,num0   
+0302   03                     INC   bc   ; move to next char, no flags affected
+0303                NUM0:        
+0303   08                     EX   af,af'   ; save zero flag = 0 for later
+0304                NUM1:        
+0304   0A                     LD   a,(bc)   ; read digit
+0305   D6 30                  SUB   "0"   ; less than 0?
+0307   38 13                  JR   c,num2   ; not a digit, exit loop
+0309   FE 0A                  CP   10   ; greater that 9?
+030B   30 0F                  JR   nc,num2   ; not a digit, exit loop
+030D   03                     INC   bc   ; inc IP
+030E   54 5D                  LD   de,hl   ; multiply hl * 10
+0310   29                     ADD   hl,hl   
+0311   29                     ADD   hl,hl   
+0312   19                     ADD   hl,de   
+0313   29                     ADD   hl,hl   
+0314   85                     ADD   a,l   ; add digit in a to hl
+0315   6F                     LD   l,a   
+0316   3E 00                  LD   a,0   
+0318   8C                     ADC   a,h   
+0319   67                     LD   h,a   
+031A   18 E8                  JR   num1   
+031C                NUM2:        
+031C   0B                     DEC   bc   
+031D   08                     EX   af,af'   ; restore zero flag
+031E   20 07                  JR   nz,num3   
+0320   EB                     EX   de,hl   ; negate the value of hl
+0321   21 00 00               LD   hl,0   
+0324   B7                     OR   a   ; jump to sub2
+0325   ED 52                  SBC   hl,de   
+0327                NUM3:        
+0327   E5                     PUSH   hl   ; Put the number on the stack
+0328   FD E9                  JP   (iy)   ; and process the next character
+032A                CALLX:       
+032A   CD 65 03               CALL   lookupRef0   
+032D   5E                     LD   E,(hl)   
+032E   23                     INC   hl   
+032F   56                     LD   D,(hl)   
+0330   7A                     LD   a,D   ; skip if destination address is null
+0331   B3                     OR   E   
+0332   28 18                  JR   Z,call2   
+0334   60 69                  LD   hl,bc   
+0336   03                     INC   bc   ; read next char from source
+0337   0A                     LD   a,(bc)   ; if ; to tail call optimise
+0338   FE 3B                  CP   ";"   ; by jumping to rather than calling destination
+033A   28 0D                  JR   Z,call1   
+033C   CD 98 03               CALL   rpush   ; save Instruction Pointer
+033F   2A 9C 0B               LD   hl,(vBasePtr)   
+0342   CD 98 03               CALL   rpush   
+0345   DD 22 9C 0B            LD   (vBasePtr),ix   
+0349                CALL1:       
+0349   42 4B                  LD   bc,de   
+034B   0B                     DEC   bc   
+034C                CALL2:       
+034C   FD E9                  JP   (iy)   
+034E                VAR:         
+034E   21 00 0B               LD   hl,vars   
+0351   CD 6C 03               CALL   lookupRef   
+0354                VAR1:        
+0354   22 9E 0B               LD   (vPointer),hl   
+0357   16 00                  LD   d,0   
+0359   5E                     LD   e,(hl)   
+035A   3A 6A 0B               LD   a,(vByteMode)   
+035D   3C                     INC   a   ; is it byte?
+035E   28 02                  JR   z,var2   
+0360   23                     INC   hl   
+0361   56                     LD   d,(hl)   
+0362                VAR2:        
+0362   D5                     PUSH   de   
+0363   FD E9                  JP   (iy)   
+0365                LOOKUPREF0:      
+0365   21 34 0B               LD   hl,defs   
+0368   D6 41                  SUB   "A"   
+036A   18 02                  JR   lookupRef1   
+036C                LOOKUPREF:      
+036C   D6 61                  SUB   "a"   
+036E                LOOKUPREF1:      
+036E   87                     ADD   a,a   
+036F   85                     ADD   a,l   
+0370   6F                     LD   l,a   
+0371   3E 00                  LD   a,0   
+0373   8C                     ADC   a,h   
+0374   67                     LD   h,a   
+0375   AF                     XOR   a   
+0376   B3                     OR   e   ; sets Z flag if A-Z
+0377   C9                     RET      
+0378                PROMPT:      
+0378   CD 88 03               CALL   printStr   
+037B   0D 0A 3E 20 00         .CSTR   "\r\n> "   
+0380   C9                     RET      
+0381                CRLF:        
+0381   CD 88 03               CALL   printStr   
+0384   0D 0A 00               .CSTR   "\r\n"   
+0387   C9                     RET      
+0388                PRINTSTR:      
+0388   E3                     EX   (sp),hl   ; swap			
+0389   CD 93 03               CALL   putStr   
+038C   23                     INC   hl   ; inc past null
+038D   E3                     EX   (sp),hl   ; put it back	
+038E   C9                     RET      
+038F                PUTSTR0:      
+038F   CD 87 00               CALL   putchar   
+0392   23                     INC   hl   
+0393                PUTSTR:      
+0393   7E                     LD   a,(hl)   
+0394   B7                     OR   A   
+0395   20 F8                  JR   NZ,putStr0   
+0397   C9                     RET      
+0398                RPUSH:       
+0398   DD 2B                  DEC   ix   
+039A   DD 74 00               LD   (ix+0),H   
+039D   DD 2B                  DEC   ix   
+039F   DD 75 00               LD   (ix+0),L   
+03A2   C9                     RET      
+03A3                RPOP:        
+03A3   DD 6E 00               LD   L,(ix+0)   
+03A6   DD 23                  INC   ix   
+03A8   DD 66 00               LD   H,(ix+0)   
+03AB   DD 23                  INC   ix   
+03AD                RPOP2:       
+03AD   C9                     RET      
+03AE                ENTER:       
+03AE   60 69                  LD   hl,bc   
+03B0   CD 98 03               CALL   rpush   ; save Instruction Pointer
+03B3   2A 9C 0B               LD   hl,(vBasePtr)   
+03B6   CD 98 03               CALL   rpush   
+03B9   DD 22 9C 0B            LD   (vBasePtr),ix   
+03BD   C1                     POP   bc   
+03BE   0B                     DEC   bc   
+03BF   FD E9                  JP   (iy)   
+03C1                             ; hl = value
+03C1                PRINTDEC:      
+03C1   CB 7C                  BIT   7,h   
+03C3   28 0B                  JR   z,printDec2   
+03C5   3E 2D                  LD   a,"-"   
+03C7   CD 87 00               CALL   putchar   
+03CA   AF                     XOR   a   
+03CB   95                     SUB   l   
+03CC   6F                     LD   l,a   
+03CD   9F                     SBC   a,a   
+03CE   94                     SUB   h   
+03CF   67                     LD   h,a   
+03D0                PRINTDEC2:      
+03D0   C5                     PUSH   bc   
+03D1   0E 00                  LD   c,0   ; leading zeros flag = false
+03D3   11 F0 D8               LD   de,-10000   
+03D6   CD F2 03               CALL   printDec4   
+03D9   11 18 FC               LD   de,-1000   
+03DC   CD F2 03               CALL   printDec4   
+03DF   11 9C FF               LD   de,-100   
+03E2   CD F2 03               CALL   printDec4   
+03E5   1E F6                  LD   e,-10   
+03E7   CD F2 03               CALL   printDec4   
+03EA   0C                     INC   c   ; flag = true for at least digit
+03EB   1E FF                  LD   e,-1   
+03ED   CD F2 03               CALL   printDec4   
+03F0   C1                     POP   bc   
+03F1   C9                     RET      
+03F2                PRINTDEC4:      
+03F2   06 2F                  LD   b,"0"-1   
+03F4                PRINTDEC5:      
+03F4   04                     INC   b   
+03F5   19                     ADD   hl,de   
+03F6   38 FC                  JR   c,printDec5   
+03F8   ED 52                  SBC   hl,de   
+03FA   3E 30                  LD   a,"0"   
+03FC   B8                     CP   b   
+03FD   20 05                  JR   nz,printDec6   
+03FF   AF                     XOR   a   
+0400   B1                     OR   c   
+0401   C8                     RET   z   
+0402   18 01                  JR   printDec7   
+0404                PRINTDEC6:      
+0404   0C                     INC   c   
+0405                PRINTDEC7:      
+0405   78                     LD   a,b   
+0406   C3 87 00               JP   putchar   
+0409                DEF:         ; Create a colon definition
+0409   03                     INC   bc   
+040A   0A                     LD   a,(bc)   ; Get the next character
+040B   FE 3A                  CP   ":"   ; is it anonymouse
+040D   20 08                  JR   nz,def0   
+040F   03                     INC   bc   
+0410   ED 5B 76 0B            LD   de,(vHeapPtr)   ; return start of definition
+0414   D5                     PUSH   de   
+0415   18 0B                  JR   def1   
+0417                DEF0:        
+0417   CD 65 03               CALL   lookupRef0   
+041A   ED 5B 76 0B            LD   de,(vHeapPtr)   ; start of defintion
+041E   73                     LD   (hl),E   ; Save low byte of address in CFA
+041F   23                     INC   hl   
+0420   72                     LD   (hl),D   ; Save high byte of address in CFA+1
+0421   03                     INC   bc   
+0422                DEF1:        ; Skip to end of definition
+0422   0A                     LD   a,(bc)   ; Get the next character
+0423   03                     INC   bc   ; Point to next character
+0424   12                     LD   (de),A   
+0425   13                     INC   de   
+0426   FE 3B                  CP   ";"   ; Is it a semicolon
+0428   28 02                  JR   Z,def2   ; end the definition
+042A   18 F6                  JR   def1   ; get the next element
+042C                DEF2:        
+042C   0B                     DEC   bc   
+042D                DEF3:        
+042D   ED 53 76 0B            LD   (vHeapPtr),de   ; bump heap ptr to after definiton
+0431   FD E9                  JP   (iy)   
+0433                             ; *******************************************************************************
+0433                             ; *********  END OF MAIN   ******************************************************
+0433                             ; *******************************************************************************
+0433                DSIZE:    EQU   $80   
+0433                RSIZE:    EQU   $80   
+0433                TIBSIZE:   EQU   $100   ; 256 bytes , along line!
+0433                VARS_SIZE:   EQU   26*2   
 0800                          .ORG   RAMSTART   
 0800                TIB:      DS   TIBSIZE   
 0900                          DS   RSIZE   
@@ -1065,7 +991,7 @@
 0B76                VHEAPPTR:   DS   2   ; h heap pointer variable
 0B78                          DS   2   ; i loop variable
 0B7A                          DS   2   ; j outer loop variable
-0B7C                VTIBPTR:   DS   2   ; k address of text input buffer
+0B7C                          DS   2   ; k
 0B7E                          DS   2   ; l
 0B80                          DS   2   ; m
 0B82                          DS   2   ; n
@@ -1108,8 +1034,8 @@ RAMSTART:           0800 DEFINED AT LINE 24 IN constants.asm
 ROMSIZE:            0800 DEFINED AT LINE 25 IN constants.asm
 RAMSIZE:            0800 DEFINED AT LINE 26 IN constants.asm
 CONTROL:            0080 DEFINED AT LINE 22 IN IOSerial.asm
-                    > USED AT LINE 465 IN IOSerial.asm
-                    > USED AT LINE 487 IN IOSerial.asm
+                    > USED AT LINE 467 IN IOSerial.asm
+                    > USED AT LINE 489 IN IOSerial.asm
 STATUS:             0080 DEFINED AT LINE 23 IN IOSerial.asm
                     > USED AT LINE 298 IN IOSerial.asm
                     > USED AT LINE 311 IN IOSerial.asm
@@ -1118,20 +1044,20 @@ TDR:                0081 DEFINED AT LINE 24 IN IOSerial.asm
 RDR:                0081 DEFINED AT LINE 25 IN IOSerial.asm
                     > USED AT LINE 315 IN IOSerial.asm
 MRESET:             0003 DEFINED AT LINE 32 IN IOSerial.asm
-                    > USED AT LINE 464 IN IOSerial.asm
+                    > USED AT LINE 466 IN IOSerial.asm
 DIV_64:             0002 DEFINED AT LINE 35 IN IOSerial.asm
-                    > USED AT LINE 486 IN IOSerial.asm
+                    > USED AT LINE 488 IN IOSerial.asm
 F7E2:               0000 DEFINED AT LINE 39 IN IOSerial.asm
 F7O2:               0004 DEFINED AT LINE 40 IN IOSerial.asm
 F7E1:               0008 DEFINED AT LINE 41 IN IOSerial.asm
 F7O1:               000C DEFINED AT LINE 42 IN IOSerial.asm
 F8N2:               0010 DEFINED AT LINE 43 IN IOSerial.asm
-                    > USED AT LINE 486 IN IOSerial.asm
+                    > USED AT LINE 488 IN IOSerial.asm
 F8N1:               0014 DEFINED AT LINE 44 IN IOSerial.asm
 F8E1:               0018 DEFINED AT LINE 45 IN IOSerial.asm
 F8O1:               001C DEFINED AT LINE 46 IN IOSerial.asm
 RTSLID:             0000 DEFINED AT LINE 50 IN IOSerial.asm
-                    > USED AT LINE 486 IN IOSerial.asm
+                    > USED AT LINE 488 IN IOSerial.asm
 RTSLIE:             0020 DEFINED AT LINE 51 IN IOSerial.asm
 RTSHID:             0040 DEFINED AT LINE 52 IN IOSerial.asm
 RTSLIDB:            0060 DEFINED AT LINE 53 IN IOSerial.asm
@@ -1158,37 +1084,36 @@ LF:                 000A DEFINED AT LINE 98 IN IOSerial.asm
 RSTVEC:             0000 DEFINED AT LINE 102 IN IOSerial.asm
 SEVENSEGMENT:       0040 DEFINED AT LINE 152 IN IOSerial.asm
 PWRUP:              0050 DEFINED AT LINE 174 IN IOSerial.asm
-                    > USED AT LINE 470 IN IOSerial.asm
+                    > USED AT LINE 472 IN IOSerial.asm
 BITIME:             0053 DEFINED AT LINE 176 IN IOSerial.asm
 BITIM1:             0058 DEFINED AT LINE 180 IN IOSerial.asm
                     > USED AT LINE 182 IN IOSerial.asm
 INTRET:             005F DEFINED AT LINE 185 IN IOSerial.asm
-                    > USED AT LINE 446 IN IOSerial.asm
+                    > USED AT LINE 448 IN IOSerial.asm
 TXDATA:             006B DEFINED AT LINE 293 IN IOSerial.asm
-                    > USED AT LINE 458 IN IOSerial.asm
+                    > USED AT LINE 460 IN IOSerial.asm
 TXCHAR:             006B DEFINED AT LINE 294 IN IOSerial.asm
 TXCHAR1:            006D DEFINED AT LINE 297 IN IOSerial.asm
                     > USED AT LINE 301 IN IOSerial.asm
 RXDATA:             0078 DEFINED AT LINE 309 IN IOSerial.asm
-                    > USED AT LINE 456 IN IOSerial.asm
+                    > USED AT LINE 458 IN IOSerial.asm
 RXCHAR:             0078 DEFINED AT LINE 310 IN IOSerial.asm
                     > USED AT LINE 314 IN IOSerial.asm
 GETCHAR:            0081 DEFINED AT LINE 434 IN IOSerial.asm
-                    > USED AT LINE 193 IN MAIN.asm
-PUTCHAR:            0085 DEFINED AT LINE 438 IN IOSerial.asm
+                    > USED AT LINE 171 IN MAIN.asm
+PUTCHAR:            0087 DEFINED AT LINE 440 IN IOSerial.asm
                     > USED AT LINE 128 IN MAIN.asm
-                    > USED AT LINE 217 IN MAIN.asm
-                    > USED AT LINE 445 IN MAIN.asm
-                    > USED AT LINE 483 IN MAIN.asm
-                    > USED AT LINE 524 IN MAIN.asm
-RESET:              008B DEFINED AT LINE 444 IN IOSerial.asm
+                    > USED AT LINE 176 IN MAIN.asm
+                    > USED AT LINE 359 IN MAIN.asm
+                    > USED AT LINE 397 IN MAIN.asm
+                    > USED AT LINE 438 IN MAIN.asm
+RESET:              008D DEFINED AT LINE 446 IN IOSerial.asm
                     > USED AT LINE 103 IN IOSerial.asm
 TRUE:               00-1 DEFINED AT LINE 18 IN MAIN.asm
 FALSE:              0000 DEFINED AT LINE 19 IN MAIN.asm
 CTRL_C:             0003 DEFINED AT LINE 20 IN MAIN.asm
-                    > USED AT LINE 247 IN MAIN.asm
 CTRL_H:             0008 DEFINED AT LINE 21 IN MAIN.asm
-                    > USED AT LINE 200 IN MAIN.asm
+                    > USED AT LINE 184 IN MAIN.asm
 OPCODES:            0180 DEFINED AT LINE 29 IN MAIN.asm
 NOP_:               0200 DEFINED AT LINE 68 IN MAIN.asm
 BSLASH_:            0200 DEFINED AT LINE 69 IN MAIN.asm
@@ -1233,131 +1158,106 @@ INIT:               023F DEFINED AT LINE 144 IN MAIN.asm
 START:              025F DEFINED AT LINE 160 IN MAIN.asm
                     > USED AT LINE 6
 INTERPRET:          0274 DEFINED AT LINE 167 IN MAIN.asm
-                    > USED AT LINE 292 IN MAIN.asm
-INTERPRET2:         027E DEFINED AT LINE 173 IN MAIN.asm
-                    > USED AT LINE 201 IN MAIN.asm
-                    > USED AT LINE 206 IN MAIN.asm
                     > USED AT LINE 210 IN MAIN.asm
-INTERPRET3:         0286 DEFINED AT LINE 180 IN MAIN.asm
-                    > USED AT LINE 189 IN MAIN.asm
-INTERPRET4:         028C DEFINED AT LINE 186 IN MAIN.asm
-                    > USED AT LINE 178 IN MAIN.asm
-INTERPRET5:         0291 DEFINED AT LINE 192 IN MAIN.asm
-                    > USED AT LINE 219 IN MAIN.asm
-                    > USED AT LINE 233 IN MAIN.asm
-BACKSPACE:          02A4 DEFINED AT LINE 203 IN MAIN.asm
-INTERPRET6:         02B2 DEFINED AT LINE 212 IN MAIN.asm
+INTERPRET2:         027A DEFINED AT LINE 170 IN MAIN.asm
+                    > USED AT LINE 177 IN MAIN.asm
+                    > USED AT LINE 185 IN MAIN.asm
+                    > USED AT LINE 191 IN MAIN.asm
                     > USED AT LINE 195 IN MAIN.asm
-INTERPRET7:         02C0 DEFINED AT LINE 221 IN MAIN.asm
-                    > USED AT LINE 199 IN MAIN.asm
-INTERPRET8:         02D6 DEFINED AT LINE 237 IN MAIN.asm
-                    > USED AT LINE 197 IN MAIN.asm
-NEXT:               02DE DEFINED AT LINE 242 IN MAIN.asm
+INTERPRET3:         0288 DEFINED AT LINE 179 IN MAIN.asm
+                    > USED AT LINE 173 IN MAIN.asm
+INTERPRET4:         02A8 DEFINED AT LINE 197 IN MAIN.asm
+                    > USED AT LINE 181 IN MAIN.asm
+                    > USED AT LINE 183 IN MAIN.asm
+NEXT:               02B2 DEFINED AT LINE 204 IN MAIN.asm
                     > USED AT LINE 147 IN MAIN.asm
-                    > USED AT LINE 267 IN MAIN.asm
-OP:                 0308 DEFINED AT LINE 265 IN MAIN.asm
-                    > USED AT LINE 251 IN MAIN.asm
-                    > USED AT LINE 256 IN MAIN.asm
-                    > USED AT LINE 261 IN MAIN.asm
-EXIT:               0313 DEFINED AT LINE 275 IN MAIN.asm
-                    > USED AT LINE 246 IN MAIN.asm
-ETX:                0327 DEFINED AT LINE 286 IN MAIN.asm
-                    > USED AT LINE 248 IN MAIN.asm
-ETX1:               0330 DEFINED AT LINE 291 IN MAIN.asm
-                    > USED AT LINE 289 IN MAIN.asm
-NUM:                0333 DEFINED AT LINE 294 IN MAIN.asm
-                    > USED AT LINE 253 IN MAIN.asm
-NUM0:               033B DEFINED AT LINE 299 IN MAIN.asm
-                    > USED AT LINE 297 IN MAIN.asm
-NUM1:               033C DEFINED AT LINE 301 IN MAIN.asm
-                    > USED AT LINE 318 IN MAIN.asm
-NUM2:               0354 DEFINED AT LINE 319 IN MAIN.asm
-                    > USED AT LINE 304 IN MAIN.asm
-                    > USED AT LINE 306 IN MAIN.asm
-NUM3:               035F DEFINED AT LINE 327 IN MAIN.asm
-                    > USED AT LINE 322 IN MAIN.asm
-CALLX:              0362 DEFINED AT LINE 331 IN MAIN.asm
-                    > USED AT LINE 258 IN MAIN.asm
-CALL1:              0381 DEFINED AT LINE 348 IN MAIN.asm
-                    > USED AT LINE 343 IN MAIN.asm
-CALL2:              0384 DEFINED AT LINE 351 IN MAIN.asm
-                    > USED AT LINE 338 IN MAIN.asm
-VAR:                0386 DEFINED AT LINE 354 IN MAIN.asm
-                    > USED AT LINE 263 IN MAIN.asm
-VAR1:               038C DEFINED AT LINE 357 IN MAIN.asm
-VAR2:               039A DEFINED AT LINE 366 IN MAIN.asm
-                    > USED AT LINE 363 IN MAIN.asm
-LOOKUPREF0:         039D DEFINED AT LINE 370 IN MAIN.asm
-                    > USED AT LINE 332 IN MAIN.asm
-                    > USED AT LINE 536 IN MAIN.asm
-LOOKUPREF:          03A4 DEFINED AT LINE 374 IN MAIN.asm
-                    > USED AT LINE 356 IN MAIN.asm
-LOOKUPREF1:         03A6 DEFINED AT LINE 376 IN MAIN.asm
-                    > USED AT LINE 373 IN MAIN.asm
-NESTING:            03B0 DEFINED AT LINE 397 IN MAIN.asm
-                    > USED AT LINE 184 IN MAIN.asm
+                    > USED AT LINE 229 IN MAIN.asm
+OP:                 02DC DEFINED AT LINE 227 IN MAIN.asm
+                    > USED AT LINE 213 IN MAIN.asm
                     > USED AT LINE 218 IN MAIN.asm
-NESTING1:           03B9 DEFINED AT LINE 404 IN MAIN.asm
-                    > USED AT LINE 399 IN MAIN.asm
-NESTING2:           03C8 DEFINED AT LINE 413 IN MAIN.asm
-                    > USED AT LINE 408 IN MAIN.asm
-                    > USED AT LINE 410 IN MAIN.asm
-NESTING3:           03CA DEFINED AT LINE 416 IN MAIN.asm
-                    > USED AT LINE 412 IN MAIN.asm
-NESTING4:           03D5 DEFINED AT LINE 423 IN MAIN.asm
-                    > USED AT LINE 418 IN MAIN.asm
-                    > USED AT LINE 420 IN MAIN.asm
-PROMPT:             03D7 DEFINED AT LINE 427 IN MAIN.asm
-                    > USED AT LINE 168 IN MAIN.asm
-CRLF:               03E0 DEFINED AT LINE 432 IN MAIN.asm
-                    > USED AT LINE 230 IN MAIN.asm
-PRINTSTR:           03E7 DEFINED AT LINE 437 IN MAIN.asm
-                    > USED AT LINE 164 IN MAIN.asm
+                    > USED AT LINE 223 IN MAIN.asm
+EXIT:               02E7 DEFINED AT LINE 237 IN MAIN.asm
                     > USED AT LINE 208 IN MAIN.asm
-                    > USED AT LINE 428 IN MAIN.asm
-                    > USED AT LINE 433 IN MAIN.asm
-PUTSTR0:            03EE DEFINED AT LINE 444 IN MAIN.asm
+NUM:                02FB DEFINED AT LINE 248 IN MAIN.asm
+                    > USED AT LINE 215 IN MAIN.asm
+NUM0:               0303 DEFINED AT LINE 253 IN MAIN.asm
+                    > USED AT LINE 251 IN MAIN.asm
+NUM1:               0304 DEFINED AT LINE 255 IN MAIN.asm
+                    > USED AT LINE 272 IN MAIN.asm
+NUM2:               031C DEFINED AT LINE 273 IN MAIN.asm
+                    > USED AT LINE 258 IN MAIN.asm
+                    > USED AT LINE 260 IN MAIN.asm
+NUM3:               0327 DEFINED AT LINE 281 IN MAIN.asm
+                    > USED AT LINE 276 IN MAIN.asm
+CALLX:              032A DEFINED AT LINE 285 IN MAIN.asm
+                    > USED AT LINE 220 IN MAIN.asm
+CALL1:              0349 DEFINED AT LINE 302 IN MAIN.asm
+                    > USED AT LINE 297 IN MAIN.asm
+CALL2:              034C DEFINED AT LINE 305 IN MAIN.asm
+                    > USED AT LINE 292 IN MAIN.asm
+VAR:                034E DEFINED AT LINE 308 IN MAIN.asm
+                    > USED AT LINE 225 IN MAIN.asm
+VAR1:               0354 DEFINED AT LINE 311 IN MAIN.asm
+VAR2:               0362 DEFINED AT LINE 320 IN MAIN.asm
+                    > USED AT LINE 317 IN MAIN.asm
+LOOKUPREF0:         0365 DEFINED AT LINE 324 IN MAIN.asm
+                    > USED AT LINE 286 IN MAIN.asm
                     > USED AT LINE 450 IN MAIN.asm
-PUTSTR:             03F2 DEFINED AT LINE 447 IN MAIN.asm
-                    > USED AT LINE 439 IN MAIN.asm
-RPUSH:              03F7 DEFINED AT LINE 453 IN MAIN.asm
-                    > USED AT LINE 344 IN MAIN.asm
-                    > USED AT LINE 346 IN MAIN.asm
-                    > USED AT LINE 470 IN MAIN.asm
-                    > USED AT LINE 472 IN MAIN.asm
-RPOP:               0402 DEFINED AT LINE 460 IN MAIN.asm
+LOOKUPREF:          036C DEFINED AT LINE 328 IN MAIN.asm
+                    > USED AT LINE 310 IN MAIN.asm
+LOOKUPREF1:         036E DEFINED AT LINE 330 IN MAIN.asm
+                    > USED AT LINE 327 IN MAIN.asm
+PROMPT:             0378 DEFINED AT LINE 341 IN MAIN.asm
+                    > USED AT LINE 168 IN MAIN.asm
+CRLF:               0381 DEFINED AT LINE 346 IN MAIN.asm
+                    > USED AT LINE 200 IN MAIN.asm
+PRINTSTR:           0388 DEFINED AT LINE 351 IN MAIN.asm
+                    > USED AT LINE 164 IN MAIN.asm
+                    > USED AT LINE 193 IN MAIN.asm
+                    > USED AT LINE 342 IN MAIN.asm
+                    > USED AT LINE 347 IN MAIN.asm
+PUTSTR0:            038F DEFINED AT LINE 358 IN MAIN.asm
+                    > USED AT LINE 364 IN MAIN.asm
+PUTSTR:             0393 DEFINED AT LINE 361 IN MAIN.asm
+                    > USED AT LINE 353 IN MAIN.asm
+RPUSH:              0398 DEFINED AT LINE 367 IN MAIN.asm
+                    > USED AT LINE 298 IN MAIN.asm
+                    > USED AT LINE 300 IN MAIN.asm
+                    > USED AT LINE 384 IN MAIN.asm
+                    > USED AT LINE 386 IN MAIN.asm
+RPOP:               03A3 DEFINED AT LINE 374 IN MAIN.asm
                     > USED AT LINE 133 IN MAIN.asm
                     > USED AT LINE 135 IN MAIN.asm
-                    > USED AT LINE 279 IN MAIN.asm
-                    > USED AT LINE 281 IN MAIN.asm
-RPOP2:              040C DEFINED AT LINE 465 IN MAIN.asm
-ENTER:              040D DEFINED AT LINE 468 IN MAIN.asm
-PRINTDEC:           0420 DEFINED AT LINE 479 IN MAIN.asm
+                    > USED AT LINE 241 IN MAIN.asm
+                    > USED AT LINE 243 IN MAIN.asm
+RPOP2:              03AD DEFINED AT LINE 379 IN MAIN.asm
+ENTER:              03AE DEFINED AT LINE 382 IN MAIN.asm
+PRINTDEC:           03C1 DEFINED AT LINE 393 IN MAIN.asm
                     > USED AT LINE 125 IN MAIN.asm
-PRINTDEC2:          042F DEFINED AT LINE 490 IN MAIN.asm
-                    > USED AT LINE 481 IN MAIN.asm
-PRINTDEC4:          0451 DEFINED AT LINE 506 IN MAIN.asm
-                    > USED AT LINE 494 IN MAIN.asm
-                    > USED AT LINE 496 IN MAIN.asm
-                    > USED AT LINE 498 IN MAIN.asm
-                    > USED AT LINE 500 IN MAIN.asm
-                    > USED AT LINE 503 IN MAIN.asm
-PRINTDEC5:          0453 DEFINED AT LINE 508 IN MAIN.asm
-                    > USED AT LINE 511 IN MAIN.asm
-PRINTDEC6:          0463 DEFINED AT LINE 520 IN MAIN.asm
-                    > USED AT LINE 515 IN MAIN.asm
-PRINTDEC7:          0464 DEFINED AT LINE 522 IN MAIN.asm
-                    > USED AT LINE 519 IN MAIN.asm
-DEF:                0468 DEFINED AT LINE 526 IN MAIN.asm
+PRINTDEC2:          03D0 DEFINED AT LINE 404 IN MAIN.asm
+                    > USED AT LINE 395 IN MAIN.asm
+PRINTDEC4:          03F2 DEFINED AT LINE 420 IN MAIN.asm
+                    > USED AT LINE 408 IN MAIN.asm
+                    > USED AT LINE 410 IN MAIN.asm
+                    > USED AT LINE 412 IN MAIN.asm
+                    > USED AT LINE 414 IN MAIN.asm
+                    > USED AT LINE 417 IN MAIN.asm
+PRINTDEC5:          03F4 DEFINED AT LINE 422 IN MAIN.asm
+                    > USED AT LINE 425 IN MAIN.asm
+PRINTDEC6:          0404 DEFINED AT LINE 434 IN MAIN.asm
+                    > USED AT LINE 429 IN MAIN.asm
+PRINTDEC7:          0405 DEFINED AT LINE 436 IN MAIN.asm
+                    > USED AT LINE 433 IN MAIN.asm
+DEF:                0409 DEFINED AT LINE 440 IN MAIN.asm
                     > USED AT LINE 140 IN MAIN.asm
-DEF0:               0476 DEFINED AT LINE 535 IN MAIN.asm
-                    > USED AT LINE 530 IN MAIN.asm
-DEF1:               0481 DEFINED AT LINE 542 IN MAIN.asm
-                    > USED AT LINE 534 IN MAIN.asm
-                    > USED AT LINE 549 IN MAIN.asm
-DEF2:               048B DEFINED AT LINE 550 IN MAIN.asm
-                    > USED AT LINE 548 IN MAIN.asm
-DEF3:               048C DEFINED AT LINE 552 IN MAIN.asm
+DEF0:               0417 DEFINED AT LINE 449 IN MAIN.asm
+                    > USED AT LINE 444 IN MAIN.asm
+DEF1:               0422 DEFINED AT LINE 456 IN MAIN.asm
+                    > USED AT LINE 448 IN MAIN.asm
+                    > USED AT LINE 463 IN MAIN.asm
+DEF2:               042C DEFINED AT LINE 464 IN MAIN.asm
+                    > USED AT LINE 462 IN MAIN.asm
+DEF3:               042D DEFINED AT LINE 466 IN MAIN.asm
 DSIZE:              0080 DEFINED AT LINE 1 IN ram.asm
                     > USED AT LINE 13 IN ram.asm
 RSIZE:              0080 DEFINED AT LINE 2 IN ram.asm
@@ -1369,84 +1269,78 @@ VARS_SIZE:          0034 DEFINED AT LINE 4 IN ram.asm
                     > USED AT LINE 34 IN ram.asm
                     > USED AT LINE 35 IN ram.asm
 TIB:                0800 DEFINED AT LINE 8 IN ram.asm
-                    > USED AT LINE 177 IN MAIN.asm
-                    > USED AT LINE 213 IN MAIN.asm
-                    > USED AT LINE 222 IN MAIN.asm
-                    > USED AT LINE 239 IN MAIN.asm
+                    > USED AT LINE 169 IN MAIN.asm
+                    > USED AT LINE 186 IN MAIN.asm
+                    > USED AT LINE 202 IN MAIN.asm
 RSTACK:             0980 DEFINED AT LINE 11 IN ram.asm
                     > USED AT LINE 145 IN MAIN.asm
 DSTACK:             0A00 DEFINED AT LINE 14 IN ram.asm
                     > USED AT LINE 161 IN MAIN.asm
-                    > USED AT LINE 287 IN MAIN.asm
-                    > USED AT LINE 290 IN MAIN.asm
 STACK:              0A00 DEFINED AT LINE 15 IN ram.asm
-                    > USED AT LINE 445 IN IOSerial.asm
+                    > USED AT LINE 447 IN IOSerial.asm
 TBPTR:              0A00 DEFINED AT LINE 16 IN ram.asm
 VTEMP1:             0A02 DEFINED AT LINE 17 IN ram.asm
 VTEMP2:             0A04 DEFINED AT LINE 18 IN ram.asm
 RST08:              0A06 DEFINED AT LINE 20 IN ram.asm
                     > USED AT LINE 107 IN IOSerial.asm
-                    > USED AT LINE 447 IN IOSerial.asm
+                    > USED AT LINE 449 IN IOSerial.asm
 RST10:              0A08 DEFINED AT LINE 21 IN ram.asm
                     > USED AT LINE 113 IN IOSerial.asm
-                    > USED AT LINE 448 IN IOSerial.asm
+                    > USED AT LINE 450 IN IOSerial.asm
 RST18:              0A0A DEFINED AT LINE 22 IN ram.asm
                     > USED AT LINE 119 IN IOSerial.asm
-                    > USED AT LINE 449 IN IOSerial.asm
+                    > USED AT LINE 451 IN IOSerial.asm
 RST20:              0A0C DEFINED AT LINE 23 IN ram.asm
                     > USED AT LINE 125 IN IOSerial.asm
-                    > USED AT LINE 450 IN IOSerial.asm
+                    > USED AT LINE 452 IN IOSerial.asm
 RST28:              0A0E DEFINED AT LINE 24 IN ram.asm
                     > USED AT LINE 131 IN IOSerial.asm
-                    > USED AT LINE 451 IN IOSerial.asm
+                    > USED AT LINE 453 IN IOSerial.asm
 RST30:              0A10 DEFINED AT LINE 25 IN ram.asm
                     > USED AT LINE 137 IN IOSerial.asm
-                    > USED AT LINE 452 IN IOSerial.asm
+                    > USED AT LINE 454 IN IOSerial.asm
 BAUD:               0A12 DEFINED AT LINE 26 IN ram.asm
 INTVEC:             0A14 DEFINED AT LINE 27 IN ram.asm
                     > USED AT LINE 143 IN IOSerial.asm
-                    > USED AT LINE 453 IN IOSerial.asm
+                    > USED AT LINE 455 IN IOSerial.asm
 NMIVEC:             0A16 DEFINED AT LINE 28 IN ram.asm
                     > USED AT LINE 191 IN IOSerial.asm
-                    > USED AT LINE 454 IN IOSerial.asm
+                    > USED AT LINE 456 IN IOSerial.asm
 GETCVEC:            0A18 DEFINED AT LINE 29 IN ram.asm
-                    > USED AT LINE 435 IN IOSerial.asm
-                    > USED AT LINE 457 IN IOSerial.asm
-PUTCVEC:            0A1A DEFINED AT LINE 30 IN ram.asm
-                    > USED AT LINE 440 IN IOSerial.asm
+                    > USED AT LINE 436 IN IOSerial.asm
                     > USED AT LINE 459 IN IOSerial.asm
+PUTCVEC:            0A1A DEFINED AT LINE 30 IN ram.asm
+                    > USED AT LINE 442 IN IOSerial.asm
+                    > USED AT LINE 461 IN IOSerial.asm
 VARS:               0B00 DEFINED AT LINE 34 IN ram.asm
                     > USED AT LINE 149 IN MAIN.asm
-                    > USED AT LINE 355 IN MAIN.asm
+                    > USED AT LINE 309 IN MAIN.asm
 DEFS:               0B34 DEFINED AT LINE 35 IN ram.asm
-                    > USED AT LINE 371 IN MAIN.asm
+                    > USED AT LINE 325 IN MAIN.asm
 ALTVARS:            0B68 DEFINED AT LINE 37 IN ram.asm
 VBYTEMODE:          0B6A DEFINED AT LINE 39 IN ram.asm
                     > USED AT LINE 105 IN MAIN.asm
-                    > USED AT LINE 361 IN MAIN.asm
+                    > USED AT LINE 315 IN MAIN.asm
 VCARRY:             0B6C DEFINED AT LINE 40 IN ram.asm
                     > USED AT LINE 120 IN MAIN.asm
 VHEAPPTR:           0B76 DEFINED AT LINE 45 IN ram.asm
                     > USED AT LINE 157 IN MAIN.asm
-                    > USED AT LINE 532 IN MAIN.asm
-                    > USED AT LINE 537 IN MAIN.asm
-                    > USED AT LINE 553 IN MAIN.asm
-VTIBPTR:            0B7C DEFINED AT LINE 48 IN ram.asm
-                    > USED AT LINE 171 IN MAIN.asm
-                    > USED AT LINE 238 IN MAIN.asm
+                    > USED AT LINE 446 IN MAIN.asm
+                    > USED AT LINE 451 IN MAIN.asm
+                    > USED AT LINE 467 IN MAIN.asm
 VREMAIN:            0B8A DEFINED AT LINE 55 IN ram.asm
 VBASEPTR:           0B9C DEFINED AT LINE 65 IN ram.asm
                     > USED AT LINE 132 IN MAIN.asm
                     > USED AT LINE 134 IN MAIN.asm
                     > USED AT LINE 146 IN MAIN.asm
-                    > USED AT LINE 278 IN MAIN.asm
-                    > USED AT LINE 280 IN MAIN.asm
-                    > USED AT LINE 345 IN MAIN.asm
-                    > USED AT LINE 347 IN MAIN.asm
-                    > USED AT LINE 471 IN MAIN.asm
-                    > USED AT LINE 473 IN MAIN.asm
+                    > USED AT LINE 240 IN MAIN.asm
+                    > USED AT LINE 242 IN MAIN.asm
+                    > USED AT LINE 299 IN MAIN.asm
+                    > USED AT LINE 301 IN MAIN.asm
+                    > USED AT LINE 385 IN MAIN.asm
+                    > USED AT LINE 387 IN MAIN.asm
 VPOINTER:           0B9E DEFINED AT LINE 66 IN ram.asm
                     > USED AT LINE 103 IN MAIN.asm
-                    > USED AT LINE 358 IN MAIN.asm
+                    > USED AT LINE 312 IN MAIN.asm
 HEAP:               0BA0 DEFINED AT LINE 68 IN ram.asm
                     > USED AT LINE 156 IN MAIN.asm

@@ -6,3 +6,4 @@ testbed.*.lst
 notes.txt
 notes.md
 snippets.md
+*.__dbg__
