@@ -45,7 +45,7 @@ vCarry:     DS 2                ; c carry variable
 vHeapPtr:   DS 2                ; h heap pointer variable
             DS 2                ; i loop variable
             DS 2                ; j outer loop variable
-            DS 2                ; k 
+vTIBPtr:    DS 2                ; k address of text input buffer
             DS 2                ; l  
             DS 2                ; m  
             DS 2                ; n

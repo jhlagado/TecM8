@@ -177,10 +177,10 @@ interpret2:                 ; calc nesting
     jr interpret2            ; wait for next character
 
 interpret3:
-    ; cp '\r'                 ; carriage return? ascii 13
-    ; jr Z,interpret4		    ; if anything else its control char
-    ; cp '\n'                 ; carriage return? ascii 13
-    ; jr Z,interpret4		    ; if anything else its control char
+    cp '\r'                 ; carriage return? ascii 13
+    jr Z,interpret4		    ; if anything else its control char
+    cp '\n'                 ; carriage return? ascii 13
+    jr Z,interpret4		    ; if anything else its control char
     cp CTRL_H               ; backSpace ?
     jr nz,interpret2        ; no, ignore
     ld hl,TIB               ; is bc at start of TIB
@@ -198,7 +198,6 @@ interpret4:
     ld a,"\n"
     ld (bc),a               ; store null in text buffer 
     call crlf               ; echo newline to screen
-    jr interpret ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
     ld bc,TIB               ; Instructions stored on heap at address HERE, we pressed enter
     dec bc
