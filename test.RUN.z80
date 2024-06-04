@@ -3,15 +3,18 @@
 .include "constants.asm"
 .include "IOSerial.asm"
 
-.macro testInput,s1
-    ld HL,buf1%%M
-    ld (tbPtr),HL
-    jr buf2%%M
-buf1%%M:
-    DB s1,$0D
-buf2%%M:
-.endm
     jp startTest
+
+tbPtr:
+    dw textInput                
+textInput:
+.db "label1: LD A, 42;\r\n"
+.db "label2: .set counter = 10;\r\n"
+.db "label3: .if counter > 5\r\n"
+.db "NOP;\r\n"
+.db ".else\r\n"
+.db "LD BC, 123;\r\n"
+.db ".endif\r\n",0
     
 testGetCharImpl:
     PUSH HL
@@ -25,11 +28,10 @@ testGetCharImpl:
 startTest:
     LD SP,DSTACK
     CALL init
-    ld HL,testGetCharImpl                       ; change getchar implmentation to use tbuf
+    ld HL,testGetCharImpl               ; change getchar implmentation to use tbuf
     LD (GETCVEC),HL
-    
-    testInput "3\n2."
-    JP interpret
+    JP program
 
 .include "MAIN.asm"
 .include "ram.asm"
+

@@ -3,7 +3,7 @@ test.*.hex
 test.*.lst
 testbed.*.hex
 testbed.*.lst
-notes.txt
 notes.md
-snippets.md
 *.__dbg__
+*.txt
+*.js

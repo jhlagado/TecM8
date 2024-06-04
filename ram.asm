@@ -1,21 +1,4 @@
-DSIZE       EQU $80
-RSIZE       EQU $80
-TIBSIZE     EQU $100		; 256 bytes , along line!
-VARS_SIZE   equ 26*2
-
 .ORG RAMSTART
-
-TIB:        DS TIBSIZE
-
-            DS RSIZE
-rStack:        
-
-            DS DSIZE
-dStack:        
-stack:
-tbPtr:      DS 2                ; reserved for tests
-vTemp1:     ds 2                ; 
-vTemp2:     ds 2                ; 
 
 RST08:      DS 2                 
 RST10:      DS 2                 
@@ -29,40 +12,23 @@ NMIVEC:     DS 2                ;
 GETCVEC:    DS 2                ;   
 PUTCVEC:    DS 2                ;   
 
-            .align $100
+vTemp1:     ds 2                ; temp var 1
+vTemp2:     ds 2                ; temp var 2
 
-vars:       DS VARS_SIZE
-defs:       DS VARS_SIZE
+vToken:     ds 2                ; byte containing enum of token type
+vTokPtr:    ds 2                ; pointer to start of token value
+vCharPtr:   ds 2                ; pointer to char position into input buffer
+vAsmPtr:    ds 2                ; pointer to assembly point
+vStrPtr:    ds 2                ; pointer to string stack
+vSymPtr:    ds 2                ; pointer to symbol stack
+vExprPtr:   ds 2                ; pointer to expression stack
 
-altVars:
-            DS 2                ; a
-vByteMode:  DS 2                ; b
-vCarry:     DS 2                ; c carry variable
-            DS 2                ; d
-            DS 2                ; e
-            DS 2                ; f
-            DS 2                ; g
-vHeapPtr:   DS 2                ; h heap pointer variable
-            DS 2                ; i loop variable
-            DS 2                ; j outer loop variable
-vTIBPtr:    DS 2                ; k address of text input buffer
-            DS 2                ; l  
-            DS 2                ; m  
-            DS 2                ; n
-            DS 2                ; o
-            DS 2                ; p
-            DS 2                ; q
-vRemain:    DS 2                ; r remainder of last division     
-            DS 2                ; s address of start of stack
-            DS 2                ; t
-            DS 2                ; u
-            DS 2                ; v
-            DS 2                ; w
-            DS 2                ; x     
-            DS 2                ; y
-            DS 2                ; z name of last defined function
+chars:      ds $100             ; page aligned, 256 bytes , a long line!
 
-vBasePtr:   DS 2
-vPointer:   DS 2                 
+            ds $100
+stack:                          ; grows down
+strings:    ds $100             ; string heap - grows up
+symbols:    ds $100             ; symbol heap - grows up
+exprs:      ds $100             ; expression heap - grows up
 
-HEAP:         
+assembly:

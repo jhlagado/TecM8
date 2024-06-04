@@ -2,8 +2,7 @@
 ;
 ;       TecM8 1.0 Assembler for the Tec-1 
 ;
-;       John Hardy
-;       incorporates code by Ken Boak and Craig Jones 
+;       by John Hardy
 ;
 ;       GNU GENERAL PUBLIC LICENSE                   Version 3, 29 June 2007
 ;
@@ -97,72 +96,133 @@ star_:
     jp (iy)
 
 bang_:                      ; Store the value at the address placed on the top of the stack
-assign:
-    pop hl                  ; discard value of last accessed variable
-    pop de                  ; new value
-    ld hl,(vPointer)
-    ld (hl),e          
-    ld a,(vByteMode)                   
-    inc a                   ; is it byte?
-    jr z,assign1
-    inc hl              
-    ld (hl),d          
-assign1:
-    jp (iy)
 
 plus_:                           ; add the top 2 members of the stack
-    pop     de                 
-    pop     hl                 
-    add     hl,de              
-    push    hl                 
-    ld hl,0
-    rl l
-    ld (vCarry),hl
-    jp (iy)              
- 
+
 dot_:       
-    pop hl
-    call printDec
-dot2:
-    ld a,' '           
-    call putChar
-    jp (iy)
 
 semi_:
-    ld ix,(vBasePtr)        ; 
-    call rpop               ; Restore old base pointer
-    ld (vBasePtr),hl
-    call rpop               ; Restore Instruction pointer
-    ld bc,hl                
-    jp (iy)             
 
 colon_:   
-    jp def
-
-
 
 init:
-    ld ix,RSTACK
-    ld (vBasePtr),ix
-    ld iy,next		            ; iy provides a faster jump to next
-
-    ld hl,vars              
-    ld de,hl
-    inc de
-    ld (hl),0
-    ld bc,VARS_SIZE * 3         ; init vars, defs and altVars
-    ldir
-
-    ld hl,HEAP
-    ld (vHeapPtr),hl
+    xor a                       ; a = NUL_ token
+    ld (vToken),a
+    ld hl,chars
+    ld (vCharPtr),hl
+    ld hl,assembly
+    ld (vAsmPtr),hl
+    ld hl,strings
+    ld (vStrPtr),hl
+    ld (vTokPtr),hl
+    ld hl,symbols
+    ld (vSymPtr),hl
+    ld hl,exprs
+    ld (vExprPtr),hl
     ret
 
-start:                          ; start of TecM8
-    ld sp,DSTACK		        
+EOF_    .equ -1
+NUL_    .equ 0
+END_    .equ 2
+
+start:                      ; entry point of TecM8
+    ld sp,STACK		        
     call init
     
-    call printStr		; prog count to stack, put code line 235 on stack then call print
+    call printStr		
     .cstr "TecM8 0.0\r\n"
+
+program:
+    call statementList
+    call printStr		
+    .cstr "Parsing completed successfully.";
+    halt
+
+statementList:
+    ld a,(vToken)
+    cp EOF_
+    ret z
+    call statement
+    cp END_
+    call match
+    jr z,statementList 
+    call error		
+    .cstr "Expected newline"
+
+statement:
+    ret
+
+match:
+    ret nz
+    push af
+    call getToken
+    pop af
+    ret
+
+nextToken:
+    ld hl,0
+    call nextChar
+    dec a                           ; if -ve then EOF
+    jr c,nextToken1x
+    inc a                           ; restore a
+    cp " "+1                        ; is it whitespace
+    jr nc,nextToken3
+nextToken1:
+    or a                            ; is it null
+    jr z,nextToken2
+    cp " "+1
+    jr nc,nextToken2
+    call nextChar
+    jr nextToken1
+nextToken2:    
+    ld a,SKIP_
+    jr nextToken1x
+nextToken3:
+    cp "-"
+    jr z,nextToken4
+    cp "$"
+    jr z,nextToken4
+    cp "0"
+    jr nc,nextToken4
+    cp "9"+1
+    jr c,nextToken4
+    jr nextToken5
+nextToken4:
+    call number
+    ld a,NUM_
+    jr nextToken1x
+nextToken5:
+    cp "_"
+    jr z,nextToken6
+    cp "A"
+    jr nc,nextToken6
+    cp "Z"+1
+    jr c,nextToken6
+    cp "a"
+    jr nc,nextToken6
+    cp "z"+1
+    jr c,nextToken6
+    jr nextToken7
+nextToken6:
+    call ident
+    ld a,ID_
+    jr nextToken1x
+nextToken7:
+    ld a,NUL_
+    ld hl,0
+nextToken1x:
+    ld (vToken),a
+    ld (vTokPtr),hl
+    ret
+
+number:
+    ld hl,0
+    ret
+
+ident:
+    ld hl,0
+    ret
+
 
 interpret:
     call prompt
@@ -170,7 +230,7 @@ interpret:
 interpret2:                 ; calc nesting 
     call getchar            ; loop around waiting for character from serial port
     cp $20			        ; compare to space
-    jr C,interpret3		    ; if >= space, if below 20 set cary flag
+    jr C,interpret3		    ; if >= space, if below 20 set carry flag
     ld (bc),A               ; store the character in textbuf
     inc bc
     call putchar            ; echo character to screen
@@ -348,12 +408,23 @@ crlf:
     .cstr "\r\n"
     ret
 
+; printStr:                           
+;     EX (sp),hl		                ; swap			
+;     call putStr		
+;     inc hl			                ; inc past null
+;     EX (sp),hl		                ; put it back	
+;     ret
+
 printStr:                           
-    EX (sp),hl		                ; swap			
+    pop hl		                    ; "return" address is address of string			
     call putStr		
     inc hl			                ; inc past null
-    EX (sp),hl		                ; put it back	
-    ret
+    jp (hl)		                    ; put it back	
+
+error:
+    pop hl
+    call putStr
+    halt
 
 putStr0:                            
     call putchar
@@ -361,7 +432,7 @@ putStr0:
 putStr:
     ld a,(hl)
     or A
-    jr NZ,putStr0
+    jr nz,putStr0
     ret
 
 rpush:                              

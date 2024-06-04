@@ -1,3 +1,14 @@
+; *************************************************************************
+;
+;       Serial routines 
+;
+;       written by Craig Jones 
+;
+;       GNU GENERAL PUBLIC LICENSE                   Version 3, 29 June 2007
+;
+;       see the LICENSE file in this repo for more information 
+;
+; *****************************************************************************
         ; ROM code
         ; Targets:
         ; TEC-1,TEC-1D,TEC-1F,Southern Cross,RC2014
