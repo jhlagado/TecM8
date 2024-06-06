@@ -25,85 +25,21 @@
 
 	.ORG ROMSTART + $180	; 0+180 put TecM8 code from here	
 
-opcodes:
-    db    lsb(bang_)        ;   !            
-    db    lsb(dquote_)      ;   "
-    db    lsb(hash_)        ;   #
-    db    lsb(dollar_)      ;   $            
-    db    lsb(percent_)     ;   %            
-    db    lsb(amper_)       ;   &
-    db    lsb(quote_)       ;   '
-    db    lsb(lparen_)      ;   (        
-    db    lsb(rparen_)      ;   )
-    db    lsb(star_)        ;   *            
-    db    lsb(plus_)        ;   +
-    db    lsb(comma_)       ;   ,            
-    db    lsb(minus_)       ;   -
-    db    lsb(dot_)         ;   .
-    db    lsb(slash_)       ;   /	
 
-    db    lsb(colon_)       ;    :        
-    db    lsb(semi_)        ;    ;
-    db    lsb(lt_)          ;    <
-    db    lsb(eq_)          ;    =            
-    db    lsb(gt_)          ;    >            
-    db    lsb(question_)    ;    ?   
-    db    lsb(at_)          ;    @    
+EOF_    .equ -1
+NUL_    .equ 0
+END_    .equ 2
+SKIP_   .equ 3
+NUM_    .equ 4
+ID_     .equ 5
 
-    db    lsb(lbrack_)      ;    [
-    db    lsb(bslash_)      ;    \
-    db    lsb(rbrack_)      ;    ]
-    db    lsb(caret_)       ;    ^
-    db    lsb(underscore_)  ;    _   
-    db    lsb(grave_)       ;    `           
 
-    db    lsb(lbrace_)      ;    {
-    db    lsb(pipe_)        ;    |            
-    db    lsb(rbrace_)      ;    }            
-    db    lsb(tilde_)       ;    ~             
-
-.align $100
-
-nop_:
-bslash_:
-quote_:                          ; Discard the top member of the stack
-at_:
-underscore_: 
-percent_:  
-amper_:        
-pipe_: 		 
-caret_:		 
-tilde_:                               
-invert:				        ; Bitwise INVert the top member of the stack
-dquote_:        
-comma_:                          ; print hexadecimal
-lbrace_:   
-rbrace_:    
-dollar_:        
-minus_:       		        ; Subtract the value 2nd on stack from top of stack 
-eq_:    
-gt_:    
-lt_:    
-grave_:                         
-rparen_: 
-lbrack_:
-rbrack_:
-lparen_: 
-slash_:   
-question_:
-hash_:
-star_:   
-    jp (iy)
-
-bang_:                      ; Store the value at the address placed on the top of the stack
-
-plus_:                           ; add the top 2 members of the stack
-
-dot_:       
-
-semi_:
-
-colon_:   
+start:                      ; entry point of TecM8
+    ld sp,STACK		        
+    call init
+    call printStr		
+    .cstr "TecM8 0.0\r\n"
+    jp parse
 
 init:
     xor a                       ; a = NUL_ token
@@ -121,22 +57,7 @@ init:
     ld (vExprPtr),hl
     ret
 
-EOF_    .equ -1
-NUL_    .equ 0
-END_    .equ 2
-SKIP_   .equ 3
-NUM_    .equ 4
-ID_     .equ 5
-
-
-start:                      ; entry point of TecM8
-    ld sp,STACK		        
-    call init
-    
-    call printStr		
-    .cstr "TecM8 0.0\r\n"
-
-program:
+parse:
     call statementList
     call printStr		
     .cstr "Parsing completed successfully.";
@@ -221,13 +142,6 @@ nextToken1x:
     ld (vTokPtr),hl
     ret
 
-nextChar:
-    ld bc,(vCharPtr)
-    ld a,(bc)
-    inc bc
-    ld (vCharPtr),bc
-    ret
-
 number:
     ld hl,0
     ret
@@ -236,50 +150,58 @@ ident:
     ld hl,0
     ret
 
+nextChar:
+    ld bc,(vCharPtr)
+    ld a,(bc)
+    inc bc
+    ld (vCharPtr),bc
+    or a
+    ret nz
+    call nextLine
+    jr nextChar
 
+nextLine:
+    call prompt
+    ld bc,chars             ; load bc with start of chars buffer         
+nextLine2:                  
+    call getchar            ; get character from serial port
+    cp $20			        ; compare to space
+    jr c,nextLine3		    
+    ld (bc),A               ; store the character in textbuf
+    inc bc
+    call putchar            ; echo character to screen
+    jr nextLine2            ; wait for next character
 
+nextLine3:                  ; control char
+    cp '\r'                 ; carriage return? ascii 13
+    jr Z,nextLine4		    ; if anything else its control char
+    cp '\n'                 ; carriage return? ascii 13
+    jr Z,nextLine4		    ; if anything else its control char
+    cp CTRL_H               ; backSpace ?
+    jr nz,nextLine2         ; no, ignore
+    ld hl,chars             ; is bc already at start of chars buffer
+    or a
+    sbc hl,bc
+    ld a,h                   
+    or l
+    jr z, nextLine2         ; if so, ignore backspace
+    dec bc
+    call printStr           ; backspace over previous letter
+    .cstr "\b \b"           ; erase letter
+    jr nextLine2
 
+nextLine4:
+    xor a                   ; store null in text buffer
+    ld (bc),a                
+    call crlf               ; echo newline to screen
+    ld bc,chars             ; Instructions stored on heap at address HERE, we pressed enter
+    ld (vCharPtr),bc        ; point vCharPtr to start of chars buffer
+    ret
 
+; *******************************************************************************
+; *********  END OF MAIN   ******************************************************
+; *******************************************************************************
 
-
-
-; interpret:
-;     call prompt
-;     ld bc,TIB               ; load bc with offset into TIB, decide char into tib or execute or control         
-; interpret2:                 ; calc nesting 
-;     call getchar            ; loop around waiting for character from serial port
-;     cp $20			        ; compare to space
-;     jr C,interpret3		    ; if >= space, if below 20 set carry flag
-;     ld (bc),A               ; store the character in textbuf
-;     inc bc
-;     call putchar            ; echo character to screen
-;     jr interpret2            ; wait for next character
-
-; interpret3:
-;     cp '\r'                 ; carriage return? ascii 13
-;     jr Z,interpret4		    ; if anything else its control char
-;     cp '\n'                 ; carriage return? ascii 13
-;     jr Z,interpret4		    ; if anything else its control char
-;     cp CTRL_H               ; backSpace ?
-;     jr nz,interpret2        ; no, ignore
-;     ld hl,TIB               ; is bc at start of TIB
-;     or a
-;     sbc hl,bc
-;     ld a,h                  ; is bc at start of TIB?
-;     or l
-;     jr z, interpret2        ; yes, ignore backspace
-;     dec bc
-;     call printStr
-;     .cstr "\b \b"
-;     jr interpret2
-
-; interpret4:
-;     ld a,"\n"
-;     ld (bc),a               ; store null in text buffer 
-;     call crlf               ; echo newline to screen
-
-;     ld bc,TIB               ; Instructions stored on heap at address HERE, we pressed enter
-;     dec bc
 ; next:                           
 ;     inc bc                  ; Increment the IP
 ;     ld a,(bc)               ; Get the next character and dispatch
@@ -557,6 +479,84 @@ printDec7:
 ;     ld (vHeapPtr),de            ; bump heap ptr to after definiton
 ;     jp (iy)       
 
-; *******************************************************************************
-; *********  END OF MAIN   ******************************************************
-; *******************************************************************************
+; opcodes:
+;     db    lsb(bang_)        ;   !            
+;     db    lsb(dquote_)      ;   "
+;     db    lsb(hash_)        ;   #
+;     db    lsb(dollar_)      ;   $            
+;     db    lsb(percent_)     ;   %            
+;     db    lsb(amper_)       ;   &
+;     db    lsb(quote_)       ;   '
+;     db    lsb(lparen_)      ;   (        
+;     db    lsb(rparen_)      ;   )
+;     db    lsb(star_)        ;   *            
+;     db    lsb(plus_)        ;   +
+;     db    lsb(comma_)       ;   ,            
+;     db    lsb(minus_)       ;   -
+;     db    lsb(dot_)         ;   .
+;     db    lsb(slash_)       ;   /	
+
+;     db    lsb(colon_)       ;    :        
+;     db    lsb(semi_)        ;    ;
+;     db    lsb(lt_)          ;    <
+;     db    lsb(eq_)          ;    =            
+;     db    lsb(gt_)          ;    >            
+;     db    lsb(question_)    ;    ?   
+;     db    lsb(at_)          ;    @    
+
+;     db    lsb(lbrack_)      ;    [
+;     db    lsb(bslash_)      ;    \
+;     db    lsb(rbrack_)      ;    ]
+;     db    lsb(caret_)       ;    ^
+;     db    lsb(underscore_)  ;    _   
+;     db    lsb(grave_)       ;    `           
+
+;     db    lsb(lbrace_)      ;    {
+;     db    lsb(pipe_)        ;    |            
+;     db    lsb(rbrace_)      ;    }            
+;     db    lsb(tilde_)       ;    ~             
+
+; .align $100
+
+; nop_:
+; bslash_:
+; quote_:                          ; Discard the top member of the stack
+; at_:
+; underscore_: 
+; percent_:  
+; amper_:        
+; pipe_: 		 
+; caret_:		 
+; tilde_:                               
+; invert:				        ; Bitwise INVert the top member of the stack
+; dquote_:        
+; comma_:                          ; print hexadecimal
+; lbrace_:   
+; rbrace_:    
+; dollar_:        
+; minus_:       		        ; Subtract the value 2nd on stack from top of stack 
+; eq_:    
+; gt_:    
+; lt_:    
+; grave_:                         
+; rparen_: 
+; lbrack_:
+; rbrack_:
+; lparen_: 
+; slash_:   
+; question_:
+; hash_:
+; star_:   
+;     jp (iy)
+
+; bang_:                      ; Store the value at the address placed on the top of the stack
+
+; plus_:                           ; add the top 2 members of the stack
+
+; dot_:       
+
+; semi_:
+
+; colon_:   
+
+
