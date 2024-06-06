@@ -124,6 +124,10 @@ init:
 EOF_    .equ -1
 NUL_    .equ 0
 END_    .equ 2
+SKIP_   .equ 3
+NUM_    .equ 4
+ID_     .equ 5
+
 
 start:                      ; entry point of TecM8
     ld sp,STACK		        
@@ -155,8 +159,10 @@ statement:
 match:
     ret nz
     push af
-    call getToken
+    call nextToken
+    ld l,a
     pop af
+    ld a,l
     ret
 
 nextToken:
@@ -215,6 +221,13 @@ nextToken1x:
     ld (vTokPtr),hl
     ret
 
+nextChar:
+    ld bc,(vCharPtr)
+    ld a,(bc)
+    inc bc
+    ld (vCharPtr),bc
+    ret
+
 number:
     ld hl,0
     ret
@@ -224,179 +237,185 @@ ident:
     ret
 
 
-interpret:
-    call prompt
-    ld bc,TIB               ; load bc with offset into TIB, decide char into tib or execute or control         
-interpret2:                 ; calc nesting 
-    call getchar            ; loop around waiting for character from serial port
-    cp $20			        ; compare to space
-    jr C,interpret3		    ; if >= space, if below 20 set carry flag
-    ld (bc),A               ; store the character in textbuf
-    inc bc
-    call putchar            ; echo character to screen
-    jr interpret2            ; wait for next character
 
-interpret3:
-    cp '\r'                 ; carriage return? ascii 13
-    jr Z,interpret4		    ; if anything else its control char
-    cp '\n'                 ; carriage return? ascii 13
-    jr Z,interpret4		    ; if anything else its control char
-    cp CTRL_H               ; backSpace ?
-    jr nz,interpret2        ; no, ignore
-    ld hl,TIB               ; is bc at start of TIB
-    or a
-    sbc hl,bc
-    ld a,h                  ; is bc at start of TIB?
-    or l
-    jr z, interpret2        ; yes, ignore backspace
-    dec bc
-    call printStr
-    .cstr "\b \b"
-    jr interpret2
 
-interpret4:
-    ld a,"\n"
-    ld (bc),a               ; store null in text buffer 
-    call crlf               ; echo newline to screen
 
-    ld bc,TIB               ; Instructions stored on heap at address HERE, we pressed enter
-    dec bc
-next:                           
-    inc bc                  ; Increment the IP
-    ld a,(bc)               ; Get the next character and dispatch
-    or a                    ; is it NUL?       
-    jr z,exit
-    cp "\n"                 ; is it newline?
-    jr z,interpret
-    cp "0"
-    ld d,"!"
-    jr c,op
-    cp "9"+1
-    jr c,num
-    cp "A"
-    ld d,"!"+10
-    jr c,op
-    cp "Z"+1
-    jr c,callx
-    cp "a"
-    ld d,"!"+10+26
-    jr c,op
-    cp "z"+1
-    jp c,var
-    ld d,"!"+10+26+26
-op:    
-    sub d
-    jr c,next
-    add a,lsb(opcodes)
-    ld l,A                      ; Index into table
-    ld h,msb(opcodes)           ; Start address of jump table         
-    ld l,(hl)                   ; get low jump address
-    inc h                       ; msb on next page
-    jp (hl)                     ; Jump to routine
 
-exit:
-    inc bc			; store offests into a table of bytes, smaller
-    ld de,bc                
-    ld ix,(vBasePtr)        ; 
-    call rpop               ; Restore old base pointer
-    ld (vBasePtr),hl
-    call rpop               ; Restore Instruction pointer
-    ld bc,hl
-    EX de,hl
-    jp (hl)
 
-num:
-	ld hl,$0000				    ; Clear hl to accept the number
-    cp '-'
-    jr nz,num0
-    inc bc                      ; move to next char, no flags affected
-num0:
-    ex af,af'                   ; save zero flag = 0 for later
-num1:
-    ld a,(bc)                   ; read digit    
-    sub "0"                     ; less than 0?
-    jr c, num2                  ; not a digit, exit loop 
-    cp 10                       ; greater that 9?
-    jr nc, num2                 ; not a digit, exit loop
-    inc bc                      ; inc IP
-    ld de,hl                    ; multiply hl * 10
-    add hl,hl    
-    add hl,hl    
-    add hl,de    
-    add hl,hl    
-    add a,l                     ; add digit in a to hl
-    ld l,a
-    ld a,0
-    adc a,h
-    ld h,a
-    jr num1 
-num2:
-    dec bc
-    ex af,af'                   ; restore zero flag
-    jr nz, num3
-    ex de,hl                    ; negate the value of hl
-    ld hl,0
-    or a                        ; jump to sub2
-    sbc hl,de    
-num3:
-    push hl                     ; Put the number on the stack
-    jp (iy)                     ; and process the next character
 
-callx:
-    call lookupRef0
-    ld E,(hl)
-    inc hl
-    ld D,(hl)
-    ld a,D                      ; skip if destination address is null
-    or E
-    jr Z,call2
-    ld hl,bc
-    inc bc                      ; read next char from source
-    ld a,(bc)                   ; if ; to tail call optimise
-    cp ";"                      ; by jumping to rather than calling destination
-    jr Z,call1
-    call rpush                  ; save Instruction Pointer
-    ld hl,(vBasePtr)
-    call rpush
-    ld (vBasePtr),ix
-call1:
-    ld bc,de
-    dec bc
-call2:
-    jp (iy) 
+; interpret:
+;     call prompt
+;     ld bc,TIB               ; load bc with offset into TIB, decide char into tib or execute or control         
+; interpret2:                 ; calc nesting 
+;     call getchar            ; loop around waiting for character from serial port
+;     cp $20			        ; compare to space
+;     jr C,interpret3		    ; if >= space, if below 20 set carry flag
+;     ld (bc),A               ; store the character in textbuf
+;     inc bc
+;     call putchar            ; echo character to screen
+;     jr interpret2            ; wait for next character
+
+; interpret3:
+;     cp '\r'                 ; carriage return? ascii 13
+;     jr Z,interpret4		    ; if anything else its control char
+;     cp '\n'                 ; carriage return? ascii 13
+;     jr Z,interpret4		    ; if anything else its control char
+;     cp CTRL_H               ; backSpace ?
+;     jr nz,interpret2        ; no, ignore
+;     ld hl,TIB               ; is bc at start of TIB
+;     or a
+;     sbc hl,bc
+;     ld a,h                  ; is bc at start of TIB?
+;     or l
+;     jr z, interpret2        ; yes, ignore backspace
+;     dec bc
+;     call printStr
+;     .cstr "\b \b"
+;     jr interpret2
+
+; interpret4:
+;     ld a,"\n"
+;     ld (bc),a               ; store null in text buffer 
+;     call crlf               ; echo newline to screen
+
+;     ld bc,TIB               ; Instructions stored on heap at address HERE, we pressed enter
+;     dec bc
+; next:                           
+;     inc bc                  ; Increment the IP
+;     ld a,(bc)               ; Get the next character and dispatch
+;     or a                    ; is it NUL?       
+;     jr z,exit
+;     cp "\n"                 ; is it newline?
+;     jr z,interpret
+;     cp "0"
+;     ld d,"!"
+;     jr c,op
+;     cp "9"+1
+;     jr c,num
+;     cp "A"
+;     ld d,"!"+10
+;     jr c,op
+;     cp "Z"+1
+;     jr c,callx
+;     cp "a"
+;     ld d,"!"+10+26
+;     jr c,op
+;     cp "z"+1
+;     jp c,var
+;     ld d,"!"+10+26+26
+; op:    
+;     sub d
+;     jr c,next
+;     add a,lsb(opcodes)
+;     ld l,A                      ; Index into table
+;     ld h,msb(opcodes)           ; Start address of jump table         
+;     ld l,(hl)                   ; get low jump address
+;     inc h                       ; msb on next page
+;     jp (hl)                     ; Jump to routine
+
+; exit:
+;     inc bc			; store offests into a table of bytes, smaller
+;     ld de,bc                
+;     ld ix,(vBasePtr)        ; 
+;     call rpop               ; Restore old base pointer
+;     ld (vBasePtr),hl
+;     call rpop               ; Restore Instruction pointer
+;     ld bc,hl
+;     EX de,hl
+;     jp (hl)
+
+; num:
+; 	ld hl,$0000				    ; Clear hl to accept the number
+;     cp '-'
+;     jr nz,num0
+;     inc bc                      ; move to next char, no flags affected
+; num0:
+;     ex af,af'                   ; save zero flag = 0 for later
+; num1:
+;     ld a,(bc)                   ; read digit    
+;     sub "0"                     ; less than 0?
+;     jr c, num2                  ; not a digit, exit loop 
+;     cp 10                       ; greater that 9?
+;     jr nc, num2                 ; not a digit, exit loop
+;     inc bc                      ; inc IP
+;     ld de,hl                    ; multiply hl * 10
+;     add hl,hl    
+;     add hl,hl    
+;     add hl,de    
+;     add hl,hl    
+;     add a,l                     ; add digit in a to hl
+;     ld l,a
+;     ld a,0
+;     adc a,h
+;     ld h,a
+;     jr num1 
+; num2:
+;     dec bc
+;     ex af,af'                   ; restore zero flag
+;     jr nz, num3
+;     ex de,hl                    ; negate the value of hl
+;     ld hl,0
+;     or a                        ; jump to sub2
+;     sbc hl,de    
+; num3:
+;     push hl                     ; Put the number on the stack
+;     jp (iy)                     ; and process the next character
+
+; callx:
+;     call lookupRef0
+;     ld E,(hl)
+;     inc hl
+;     ld D,(hl)
+;     ld a,D                      ; skip if destination address is null
+;     or E
+;     jr Z,call2
+;     ld hl,bc
+;     inc bc                      ; read next char from source
+;     ld a,(bc)                   ; if ; to tail call optimise
+;     cp ";"                      ; by jumping to rather than calling destination
+;     jr Z,call1
+;     call rpush                  ; save Instruction Pointer
+;     ld hl,(vBasePtr)
+;     call rpush
+;     ld (vBasePtr),ix
+; call1:
+;     ld bc,de
+;     dec bc
+; call2:
+;     jp (iy) 
     
-var:
-    ld hl,vars
-    call lookupRef
-var1:
-    ld (vPointer),hl
-    ld d,0
-    ld e,(hl)
-    ld a,(vByteMode)                   
-    inc a                       ; is it byte?
-    jr z,var2
-    inc hl
-    ld d,(hl)
-var2:
-    push de
-    jp (iy)
+; var:
+;     ld hl,vars
+;     call lookupRef
+; var1:
+;     ld (vPointer),hl
+;     ld d,0
+;     ld e,(hl)
+;     ld a,(vByteMode)                   
+;     inc a                       ; is it byte?
+;     jr z,var2
+;     inc hl
+;     ld d,(hl)
+; var2:
+;     push de
+;     jp (iy)
 
-lookupRef0:
-    ld hl,defs
-    sub "A"
-    jr lookupRef1        
-lookupRef:
-    sub "a"
-lookupRef1:
-    add a,a
-    add a,l
-    ld l,a
-    ld a,0
-    ADC a,h
-    ld h,a
-    XOR a
-    or e                        ; sets Z flag if A-Z
-    ret
+; lookupRef0:
+;     ld hl,defs
+;     sub "A"
+;     jr lookupRef1        
+; lookupRef:
+;     sub "a"
+; lookupRef1:
+;     add a,a
+;     add a,l
+;     ld l,a
+;     ld a,0
+;     ADC a,h
+;     ld h,a
+;     XOR a
+;     or e                        ; sets Z flag if A-Z
+;     ret
 
 prompt:                            
     call printStr
@@ -450,15 +469,15 @@ rpop:
 rpop2:
     ret
 
-enter:                              
-    ld hl,bc
-    call rpush                      ; save Instruction Pointer
-    ld hl,(vBasePtr)
-    call rpush
-    ld (vBasePtr),ix
-    pop bc
-    dec bc
-    jp (iy)                    
+; enter:                              
+;     ld hl,bc
+;     call rpush                      ; save Instruction Pointer
+;     ld hl,(vBasePtr)
+;     call rpush
+;     ld (vBasePtr),ix
+;     pop bc
+;     dec bc
+;     jp (iy)                    
 
 ; hl = value
 printDec:    
@@ -508,35 +527,35 @@ printDec7:
     ld a,b
     jp putchar
 
-def:                                ; Create a colon definition
-    inc bc
-    ld  a,(bc)                  ; Get the next character
-    cp ":"                      ; is it anonymouse
-    jr nz,def0
-    inc bc
-    ld de,(vHeapPtr)            ; return start of definition
-    push de
-    jr def1
-def0:    
-    call lookupRef0
-    ld de,(vHeapPtr)            ; start of defintion
-    ld (hl),E                   ; Save low byte of address in CFA
-    inc hl              
-    ld (hl),D                   ; Save high byte of address in CFA+1
-    inc bc
-def1:                               ; Skip to end of definition   
-    ld a,(bc)                   ; Get the next character
-    inc bc                      ; Point to next character
-    ld (de),A
-    inc de
-    cp ";"                      ; Is it a semicolon 
-    jr Z, def2                  ; end the definition
-    jr  def1                    ; get the next element
-def2:    
-    dec bc
-def3:
-    ld (vHeapPtr),de            ; bump heap ptr to after definiton
-    jp (iy)       
+; def:                                ; Create a colon definition
+;     inc bc
+;     ld  a,(bc)                  ; Get the next character
+;     cp ":"                      ; is it anonymouse
+;     jr nz,def0
+;     inc bc
+;     ld de,(vHeapPtr)            ; return start of definition
+;     push de
+;     jr def1
+; def0:    
+;     call lookupRef0
+;     ld de,(vHeapPtr)            ; start of defintion
+;     ld (hl),E                   ; Save low byte of address in CFA
+;     inc hl              
+;     ld (hl),D                   ; Save high byte of address in CFA+1
+;     inc bc
+; def1:                               ; Skip to end of definition   
+;     ld a,(bc)                   ; Get the next character
+;     inc bc                      ; Point to next character
+;     ld (de),A
+;     inc de
+;     cp ";"                      ; Is it a semicolon 
+;     jr Z, def2                  ; end the definition
+;     jr  def1                    ; get the next element
+; def2:    
+;     dec bc
+; def3:
+;     ld (vHeapPtr),de            ; bump heap ptr to after definiton
+;     jp (iy)       
 
 ; *******************************************************************************
 ; *********  END OF MAIN   ******************************************************
