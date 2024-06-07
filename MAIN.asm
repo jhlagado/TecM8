@@ -121,15 +121,8 @@ nextToken4:
 nextToken5:
     cp "_"
     jr z,nextToken6
-    cp "A"
-    jr nc,nextToken6
-    cp "Z"+1
-    jr c,nextToken6
-    cp "a"
-    jr nc,nextToken6
-    cp "z"+1
-    jr c,nextToken6
-    jr nextToken7
+    call isAlpha
+    jr nz,nextToken7
 nextToken6:
     call ident
     ld a,ID_
@@ -146,11 +139,224 @@ number:
     ld hl,0
     ret
 
+; adds ident to string heap
+; returns hl = ptr to ident
+; destroys a,b,c,d,e,h,l
+; updates vStrPtr
 ident:
-    ld hl,0
+    ld hl,(vStrPtr)
+    inc hl                          ; skip length byte
+ident1:
+    ld (hl),a                       ; write char
+    inc hl
+    call nextChar
+    cp "_"
+    jr z,ident1
+    call isAlphanum
+    jr z,ident1
+ident2:  
+    ld de,(vStrPtr)                 ; de = string start
+    ld (vStrPtr),hl                 ; save string end
+    or a
+    sbc hl,de                       ; hl = len, de = strPtr 
+    ex de,hl                        ; e = len, hl = strPtr
+    ld (hl),e                       ; save len byte
+    ret
+
+; destroys b,c
+; uppercases a
+isAlphanum:
+    call isDigit
+    ret z                           ; fall thru to isAlpha                          
+
+; destroys b,c
+; uppercases a
+isAlpha:
+    ld c,"Z"+1                      ; last letter
+isAlpha0:
+    ld b,0                          ; reset zero flag
+    cp "a"
+    jr c,isAlpha1
+    sub "a" + "A"
+isAlpha1:
+    cp "A"
+    jr c,isAlpha2
+    cp c
+    jr nc,isAlpha2
+    ld b,1                          ; set zero flag
+isAlpha2:
+    dec b                           ; determine zero flag
+    ret
+
+; destroys b,c
+; uppercases a
+isHexDigit:
+    ld c,"F"+1
+    call isAlpha0
+    ret z                           ; fall thru to isDigit 
+
+; returns z=flag
+; destroys b
+isDigit:
+    ld b,0                          ; set zero flag
+    cp "0"
+    jr c,isDigit1
+    cp "9"+1
+    jr nc,isDigit1
+    ld b,1                          ; reset zero flag
+isDigit1:
+    dec b                           ; determine zero flag
     ret
 
 nextChar:
+    jp getchar
+
+; Parses a hexadecimal number
+
+; Input Registers:
+
+; BC: This register pair is used as a pointer to the hexadecimal string in memory.
+; Output Registers:
+
+; HL: This register pair is used to store the result of the conversion from hexadecimal to decimal.
+
+; Modified/Destroyed Registers:
+
+; A: This register is used to hold the current character being processed. It's modified throughout the routine.
+; BC: This register pair is incremented to point to the next character in the string.
+
+; Preserved Registers:
+
+; DE, IX, IY, SP, AF' (the alternate register set): These registers are not used in the routine, so they are preserved.
+
+
+hex:
+    ld hl,0                     ; Initialize HL to 0 to hold the result
+hex1:
+    inc bc                      ; Increment BC to point to the next character
+    ld a,(bc)                   ; Load the next character into A
+    cp "0"                      ; Compare with ASCII '0'
+    ret c                       ; If less, exit
+    cp "9"+1                      ; Compare with ASCII '9'
+    jr c, digit                 ; If less or equal, jump to digit
+    cp "A"                      ; Compare with ASCII 'A'
+    jr c, invalid               ; If less, jump to invalid
+    cp "F"+1                      ; Compare with ASCII 'F'
+    jr c, upper                 ; If less or equal, jump to upper
+    cp "a"                      ; Compare with ASCII 'a'
+    ret c                       ; If less, exit
+    cp "f"+1                    ; Compare with ASCII 'f'
+    ret nc                      ; If more, exit
+    sub $57                     ; Convert from ASCII to hex
+    jr valid
+digit:
+    sub $30                     ; Convert from ASCII to decimal
+    jr valid
+upper:
+    sub $37                     ; Convert from ASCII to hex
+valid:
+    sub $30                     ; Subtract $30 to convert the ASCII code of a digit to a decimal number
+    ret c                       ; If the result is negative, the character was not a valid hexadecimal digit, so return
+    cp $10                      ; Compare the result with $10
+    ret nc                      ; If the result is $10 or more, the character was not a valid hexadecimal digit, so return
+    add hl,hl                   ; Multiply the number in HL by 16 by shifting it left 4 times
+    add hl,hl                   ; This is done because each hexadecimal digit represents 16^n where n is the position of the digit from the right
+    add hl,hl
+    add hl,hl
+    add a,l                     ; Add the new digit to the number in HL
+    ld  l,a                     ; Store the result back in L
+    jp  hex1                    ; Jump back to hex1 to process the next character
+
+; Parses a decimal number
+
+; Input registers:
+
+; BC: Points to the next digit to be read from memory.
+; Output registers:
+
+; HL: Holds the binary value of the decimal number.
+
+; Destroyed registers:
+
+; A: Used for temporary storage and calculations.
+; DE: Used for temporary storage and calculations.
+
+; Preserved registers:
+
+; BC: Incremented to point to the next digit, but otherwise preserved.
+
+decimal1:
+    ld hl,0                     ; Initialize HL to 0 to hold the result
+decimal1:
+    ld a,(bc)                   ; Load the next digit from memory into A
+    sub "0"                     ; Subtract ASCII '0' to convert from ASCII to binary
+    ret c                       ; If the result is negative, the character was not a digit; return
+    cp 10                       ; Compare the result with 10
+    ret nc                      ; If the result is 10 or more, the character was not a digit; return
+    inc bc                      ; Increment BC to point to the next digit
+    ld de,hl                    ; Copy HL to DE
+    add hl,hl                   ; Multiply HL by 2
+    add hl,hl                   ; Multiply HL by 4
+    add hl,de                   ; Add DE to HL to multiply HL by 5
+    add hl,hl                   ; Multiply HL by 10
+    add a,l                     ; Add the digit in A to the low byte of HL
+    ld l,a                      ; Store the result in the low byte of HL
+    ld a,0                      ; Clear A
+    adc a,h                     ; Add the carry from the previous addition to the high byte of HL
+    ld h,a                      ; Store the result in the high byte of HL
+    jr decimal1                 ; Jump back to the start of the loop    
+
+
+num:
+	ld hl,$0000				    ; Clear hl to accept the number
+	ld a,(bc)				    ; Get numeral or -
+    cp '-'
+    jr nz,num0
+    inc bc                      ; move to next char, no flags affected
+num0:
+    ex af,af'                   ; save zero flag = 0 for later
+    call decimal
+
+num2:
+    dec bc
+    ex af,af'                   ; restore zero flag
+    jr nz, num3
+    ex de,hl                    ; negate the value of hl
+    ld hl,0
+    or a                        ; jump to sub2
+    sbc hl,de    
+num3:
+    push hl                     ; Put the number on the stack
+    jp (iy)                     ; and process the next character
+
+
+
+; inputs: DE, A
+; outputs: HL = DE * A
+; destroys b
+
+DE_Times_A:
+    ld B,8                          ; Initialize loop counter to 8 (for 8 bits in A)
+    ld HL,0                         ; Initialize result to 0
+MultiplyLoop:
+    add HL,HL                       ; Double HL
+    rlca                            ; Rotate A left through carry
+    jr NC,SkipAdd                   ; If no carry, skip the addition
+    add HL,DE                       ; Add DE to HL
+SkipAdd:
+    djnz MultiplyLoop               ; Decrement B and loop if not zero
+    ret                             ; Return from subroutine
+
+
+
+
+
+
+
+
+    
+
+
     ld bc,(vCharPtr)
     ld a,(bc)
     inc bc
