@@ -15,8 +15,9 @@ PUTCVEC:    DS 2                ;
 vTemp1:     ds 2                ; temp var 1
 vTemp2:     ds 2                ; temp var 2
 
-vToken:     ds 2                ; byte containing enum of token type
-vTokPtr:    ds 2                ; pointer to start of token value
+vPushBack:  ds 1                ; buffer for pushed back character on input
+vToken:     ds 1                ; byte containing enum of token type
+vTokenVal:  ds 2                ; pointer to start of token value
 vCharPtr:   ds 2                ; pointer to char position into input buffer
 vAsmPtr:    ds 2                ; pointer to assembly point
 vStrPtr:    ds 2                ; pointer to string stack

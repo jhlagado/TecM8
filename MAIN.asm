@@ -26,12 +26,12 @@
 	.ORG ROMSTART + $180	; 0+180 put TecM8 code from here	
 
 
-EOF_    .equ -1
-NUL_    .equ 0
-END_    .equ 2
-SKIP_   .equ 3
-NUM_    .equ 4
-ID_     .equ 5
+EOF_        .equ 0
+EOF_        .equ 0
+COMMENT_    .equ 1
+NUM_        .equ 2
+LABEL_      .equ 3
+IDENT_      .equ 4
 
 
 start:                      ; entry point of TecM8
@@ -42,15 +42,16 @@ start:                      ; entry point of TecM8
     jp parse
 
 init:
-    xor a                       ; a = NUL_ token
-    ld (vToken),a
+    xor a                       
+    ld (vPushBack),a            ; nothing in push back buffer
+    ld (vToken),a               ; NUL_ token
     ld hl,chars
     ld (vCharPtr),hl
     ld hl,assembly
     ld (vAsmPtr),hl
     ld hl,strings
     ld (vStrPtr),hl
-    ld (vTokPtr),hl
+    ld (vTokenVal),hl
     ld hl,symbols
     ld (vSymPtr),hl
     ld hl,exprs
@@ -88,63 +89,84 @@ match:
 
 nextToken:
     ld hl,0
-    call nextChar
-    dec a                           ; if -ve then EOF
-    jr c,nextToken1x
-    inc a                           ; restore a
-    cp " "+1                        ; is it whitespace
-    jr nc,nextToken3
 nextToken1:
-    or a                            ; is it null
-    jr z,nextToken2
-    cp " "+1
-    jr nc,nextToken2
     call nextChar
-    jr nextToken1
-nextToken2:    
-    ld a,SKIP_
-    jr nextToken1x
+    cp " "                          ; is it whitespace?
+    jr nc,nextToken2
+    or a                            ; is it null, ie end of input
+    jr nz,nextToken1
+    ld a,EOF_
+    jr nextToken11
+nextToken2:
+    cp ";"                          ; is it a comment?
+    call nz,nextToken4
 nextToken3:
-    cp "-"
-    jr z,nextToken4
-    cp "$"
-    jr z,nextToken4
-    cp "0"
-    jr nc,nextToken4
-    cp "9"+1
-    jr c,nextToken4
-    jr nextToken5
+    call nextChar                   ; loop until next control char
+    cp " "+1                        
+    jr nc,nextToken3
+    ld a,COMMENT_
+    jr nextToken11
 nextToken4:
+    cp "_"
+    jr z,nextToken5
+    call isAlphaNum
+    jr nc,nextToken7x
+nextToken5:
+    call ident
+    call nextChar
+    cp ":"
+    jr nz,nextToken6
+    ld a,LABEL_
+    jr nextToken11
+nextToken6:    
+    call nz,pushBack
+    ld a,IDENT_
+    jr nextToken11
+nextToken7x:
+    cp "."
+    jr nz,nextToken7
+    call directive
+    ld a,DIR_
+    jr nextToken11
+nextToken7:
+    cp "$"
+    jr nz,nextToken8
+    call nextChar
+    call isHexDigit
+    jr c,nextToken8
+    call pushBackChar
+    jr nextToken10
+nextToken8:        
+    call hex 
+    ld a,NUM_
+    jr nextToken11
+    cp "-"
+    jr z,nextToken9
+    call isDigit
+    jr nextToken10
+nextToken9:
     call number
     ld a,NUM_
-    jr nextToken1x
-nextToken5:
-    cp "_"
-    jr z,nextToken6
-    call isAlpha
-    jr nz,nextToken7
-nextToken6:
-    call ident
-    ld a,ID_
-    jr nextToken1x
-nextToken7:
-    ld a,NUL_
-    ld hl,0
-nextToken1x:
+    jr nextToken11
+nextToken10:
+    ld l,a
+    ld h,0
+    ld a,SYM_
+nextToken11:
     ld (vToken),a
-    ld (vTokPtr),hl
+    ld (vTokenVal),hl
     ret
 
 number:
     ld hl,0
     ret
 
-; adds ident to string heap
+; collects adds ident to string heap
 ; returns hl = ptr to ident
-; destroys a,b,c,d,e,h,l
+; destroys a,d,e,h,l
 ; updates vStrPtr
 ident:
-    ld hl,(vStrPtr)
+    ld hl,(vStrPtr)                 ; hl = top of strings heap
     inc hl                          ; skip length byte
 ident1:
     ld (hl),a                       ; write char
@@ -153,142 +175,247 @@ ident1:
     cp "_"
     jr z,ident1
     call isAlphanum
-    jr z,ident1
-ident2:  
+    call pushBackChar
     ld de,(vStrPtr)                 ; de = string start
-    ld (vStrPtr),hl                 ; save string end
+    ld (vStrPtr),hl                 ; update top of strings heap
     or a
-    sbc hl,de                       ; hl = len, de = strPtr 
+    sbc hl,de                       ; hl = length, de = strPtr 
     ex de,hl                        ; e = len, hl = strPtr
-    ld (hl),e                       ; save len byte
+    ld (hl),e                       ; save lsb(length)
     ret
 
-; destroys b,c
-; uppercases a
-isAlphanum:
+directive:
+    ld hl,0
+    ret
+
+;     jr c,ident1                     ; loop while alpha numeric
+;     cp ":"
+;     jr nz,ident2
+;     call endStr
+;     scf
+;     ret
+; ident2:  
+;     call endStr
+;     scf                             ; clear carry flag
+;     ccf
+;     ret
+
+
+;     ld (hl),a                       ; write char
+;     inc hl
+;     call nextChar
+; ident3:  
+;     cp " "                          ; is it a control char? \0 \r \n ?
+;     jr c,ident5
+;     cp ","                          ; is it end of arg?
+;     jr z,ident5
+;     cp ";"                          ; is it a comment at end of line
+;     jr z,ident5
+;     cp ")"                          ; todo: check nesting
+;     jr z,ident5
+; ident4:
+;     call endStr
+;     scf                             ; clear carry flag
+;     ccf
+;     ret
+; ident5:
+;     call pushBackChar               ; push the char back to input
+;     jr ident4
+
+; endStr: completes adding a string to the strings heap area
+; and stores the length at the start of the string.
+
+; Input:
+; hl: points to the end of the string.
+
+; Output:
+; hl: points to the start of the string.
+; vStrPtr: is updated to pointer to memory after the string
+
+; Destroyed: None
+
+; endStr:
+;     ld de,(vStrPtr)                 ; de = string start
+;     ld (vStrPtr),hl                 ; update top of strings heap
+;     or a
+;     sbc hl,de                       ; hl = length, de = strPtr 
+;     ex de,hl                        ; e = len, hl = strPtr
+;     ld (hl),e                       ; save lsb(length)
+;     ret
+    
+
+
+
+; isAlphaNum checks if the character in the a register is an alphanumeric character 
+; (either uppercase or lowercase). 
+; If the character is alphabetic, it converts it to uppercase and sets the carry flag. 
+; If the character is not alphabetic, it clears the carry flag.
+
+; Input:
+; a: Contains the character to be checked.
+
+; Output:
+; a: Contains the uppercase version of the input character if it was alphabetic.
+; cf: Set if the input character was alphabetic, cleared otherwise.
+
+; Destroyed: c
+
+isAlphaNum:
     call isDigit
-    ret z                           ; fall thru to isAlpha                          
+    ret z                           ; falls thru to isAlpha                          
 
-; destroys b,c
-; uppercases a
+; isAlpha: checks if the character in the a register is an alphabetic character 
+; (either uppercase or lowercase). 
+; If the character is alphabetic, it converts it to uppercase and sets the carry flag. 
+
+; Input:
+; a: Contains the character to be checked.
+
+; Output:
+; a: Contains the uppercase version of the input character if it was alphabetic.
+; cf: Set if the input character was alphabetic, cleared otherwise.
+
+; Destroyed: c
+
 isAlpha:
-    ld c,"Z"+1                      ; last letter
+    ld c,"Z"+1                      ; last uppercase letter
 isAlpha0:
-    ld b,0                          ; reset zero flag
-    cp "a"
-    jr c,isAlpha1
-    sub "a" + "A"
+    cp "a"                          ; is char lowercase?
+    jr c,isAlpha1                   
+    sub $20                         ; yes, convert a to uppercase
 isAlpha1:
-    cp "A"
-    jr c,isAlpha2
-    cp c
-    jr nc,isAlpha2
-    ld b,1                          ; set zero flag
-isAlpha2:
-    dec b                           ; determine zero flag
-    ret
+    cp c                            ; is char > last letter?
+    ret nc                          ; yes, exit with cf cleared
+    cp "A"                          ; is char an uppercase letter ?
+    ccf                             ; invert cf
+    ret                             
 
-; destroys b,c
-; uppercases a
+; isHexDigit: checks if the character in the a register is a hexadecimal 
+; digit (0-9,A-F,a-f). If the character is a hex digit, it sets the carry flag. 
+
+; Input:
+; a: Contains the character to be checked.
+
+; Output:
+; cf: Set if the input character was a digit, cleared otherwise.
+
+; Destroyed: none
+
 isHexDigit:
     ld c,"F"+1
     call isAlpha0
     ret z                           ; fall thru to isDigit 
 
-; returns z=flag
-; destroys b
+; isDigit: checks if the character in the a register is a decimal 
+; digit (0-9). If the character is a decimal digit, it sets the carry flag. 
+
+; Input:
+; a: Contains the character to be checked.
+
+; Output:
+; cf: Set if the input character was a digit, cleared otherwise.
+
+; Destroyed: none
+
 isDigit:
-    ld b,0                          ; set zero flag
-    cp "0"
-    jr c,isDigit1
-    cp "9"+1
-    jr nc,isDigit1
-    ld b,1                          ; reset zero flag
-isDigit1:
-    dec b                           ; determine zero flag
+    cp "9"+1                        ; is char > '9'?
+    ret nc                          ; yes, exit with cf cleared
+    cp "0"                          ; is char a decimal digit ?
+    ccf                             ; invert cf
     ret
 
+; nextChar: checks if there is a character that has been pushed back for re-reading. 
+; If there is, it retrieves that character, otherwise it fetches a new character 
+; from the input.
+
+; Input: none
+
+; Output:
+; a: Contains the next character to be processed, either retrieved from the 
+; pushback buffer or fetched from the input.
+
+; Destroyed: None. 
+
 nextChar:
-    jp getchar
+    bit 7, (vPushBack)              ; Check the high bit of the pushback buffer
+    jr z, getchar                   ; If the high bit is 0, jump to getchar
+    ld a, (vPushBack)               ; If the high bit is 1, load the pushed back character into A
+    and 0x7F                        ; Clear the high bit
+    ld (vPushBack), a               ; Store the character back in the buffer
+    ret                             ; Return with the pushed back character in A
 
-; Parses a hexadecimal number
+; pushBackChar: push back a character for re-reading. It sets the high bit of the 
+; character as a flag to indicate that this character has been pushed back, and 
+; stores the character in the pushback buffer.
 
-; Input Registers:
+; Input:
+; a: Contains the character to be pushed back.
 
-; BC: This register pair is used as a pointer to the hexadecimal string in memory.
-; Output Registers:
+; Output: None.
 
-; HL: This register pair is used to store the result of the conversion from hexadecimal to decimal.
+; Destroyed: None. 
 
-; Modified/Destroyed Registers:
+pushBackChar:
+    or 0x80                         ; Set the high bit of the character to be pushed back
+    ld (vPushBack), a               ; Store the character in the pushback buffer
+    ret 
+    
+; hex: parses a hexadecimal number
 
-; A: This register is used to hold the current character being processed. It's modified throughout the routine.
-; BC: This register pair is incremented to point to the next character in the string.
+; Input: none
 
-; Preserved Registers:
+; Output:
+; hl: parsed number
 
-; DE, IX, IY, SP, AF' (the alternate register set): These registers are not used in the routine, so they are preserved.
-
+; Destroyed: a
 
 hex:
-    ld hl,0                     ; Initialize HL to 0 to hold the result
+    ld hl,0                         ; Initialize HL to 0 to hold the result
 hex1:
-    inc bc                      ; Increment BC to point to the next character
-    ld a,(bc)                   ; Load the next character into A
-    cp "0"                      ; Compare with ASCII '0'
-    ret c                       ; If less, exit
-    cp "9"+1                      ; Compare with ASCII '9'
-    jr c, digit                 ; If less or equal, jump to digit
-    cp "A"                      ; Compare with ASCII 'A'
-    jr c, invalid               ; If less, jump to invalid
-    cp "F"+1                      ; Compare with ASCII 'F'
-    jr c, upper                 ; If less or equal, jump to upper
-    cp "a"                      ; Compare with ASCII 'a'
-    ret c                       ; If less, exit
-    cp "f"+1                    ; Compare with ASCII 'f'
-    ret nc                      ; If more, exit
-    sub $57                     ; Convert from ASCII to hex
-    jr valid
-digit:
-    sub $30                     ; Convert from ASCII to decimal
-    jr valid
+    call nextChar
+    cp "0"                          ; Compare with ASCII '0'
+    ret c                           ; If less, exit
+    cp "9"+1                        ; Compare with ASCII '9'
+    jr c, valid                     ; If less or equal, jump to valid
+    cp "a"                          ; is char lowercase letter?
+    jr c,hex2                   
+    sub $20                         ; yes, convert a to uppercase
+hex2:
+    cp "A"                          ; Compare with ASCII 'A'
+    ret c                           ; If less, exit invalid
+    cp "F"+1                        ; Compare with ASCII 'F'
+    jr c, upper                     ; If less or equal, jump to upper
 upper:
-    sub $37                     ; Convert from ASCII to hex
+    sub $37                         ; Convert from ASCII to hex
 valid:
-    sub $30                     ; Subtract $30 to convert the ASCII code of a digit to a decimal number
-    ret c                       ; If the result is negative, the character was not a valid hexadecimal digit, so return
-    cp $10                      ; Compare the result with $10
-    ret nc                      ; If the result is $10 or more, the character was not a valid hexadecimal digit, so return
-    add hl,hl                   ; Multiply the number in HL by 16 by shifting it left 4 times
-    add hl,hl                   ; This is done because each hexadecimal digit represents 16^n where n is the position of the digit from the right
+    sub "0"                         ; Convert from ASCII to numeric value
+    ret c                           ; If the result is negative, the character was not a valid hexadecimal digit, so return
+    cp $10                          ; Compare the result with $10
+    ret nc                          ; If the result is $10 or more, the character was not a valid hexadecimal digit, so return
+    add hl,hl                       ; Multiply the number in HL by 16 by shifting it left 4 times
+    add hl,hl                       ; This is done because each hexadecimal digit represents 16^n where n is the position of the digit from the right
     add hl,hl
     add hl,hl
     add a,l                     ; Add the new digit to the number in HL
     ld  l,a                     ; Store the result back in L
     jp  hex1                    ; Jump back to hex1 to process the next character
 
-; Parses a decimal number
+; decimal: parses a decimal number
 
-; Input registers:
+; Input: none
 
-; BC: Points to the next digit to be read from memory.
-; Output registers:
-
-; HL: Holds the binary value of the decimal number.
+; Output:
+; hl: parsed number.
 
 ; Destroyed registers:
 
 ; A: Used for temporary storage and calculations.
 ; DE: Used for temporary storage and calculations.
 
-; Preserved registers:
-
-; BC: Incremented to point to the next digit, but otherwise preserved.
-
-decimal1:
+decimal:
     ld hl,0                     ; Initialize HL to 0 to hold the result
 decimal1:
-    ld a,(bc)                   ; Load the next digit from memory into A
+    call nextChar
     sub "0"                     ; Subtract ASCII '0' to convert from ASCII to binary
     ret c                       ; If the result is negative, the character was not a digit; return
     cp 10                       ; Compare the result with 10
@@ -331,21 +458,6 @@ num3:
 
 
 
-; inputs: DE, A
-; outputs: HL = DE * A
-; destroys b
-
-DE_Times_A:
-    ld B,8                          ; Initialize loop counter to 8 (for 8 bits in A)
-    ld HL,0                         ; Initialize result to 0
-MultiplyLoop:
-    add HL,HL                       ; Double HL
-    rlca                            ; Rotate A left through carry
-    jr NC,SkipAdd                   ; If no carry, skip the addition
-    add HL,DE                       ; Add DE to HL
-SkipAdd:
-    djnz MultiplyLoop               ; Decrement B and loop if not zero
-    ret                             ; Return from subroutine
 
 
 
