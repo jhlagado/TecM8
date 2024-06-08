@@ -27,11 +27,11 @@
 
 
 EOF_        .equ 0
-EOF_        .equ 0
-COMMENT_    .equ 1
-NUM_        .equ 2
-LABEL_      .equ 3
-IDENT_      .equ 4
+NEWLN_      .equ 1
+COMMENT_    .equ 2
+NUM_        .equ 3
+LABEL_      .equ 4
+IDENT_      .equ 5
 
 
 start:                      ; entry point of TecM8
@@ -87,80 +87,92 @@ match:
     ld a,l
     ret
 
+; nextToken is a lexer function that reads characters from the input and classifies 
+; them into different token types. It handles whitespace, end of input, newlines, 
+; comments, identifiers, labels, directives, hexadecimal numbers, and other symbols.
+
+; Input: None
+
+; Output:
+; a: contains the type of the next token.
+; hl: contains the value associated with the next token.
+
+; Destroyed: None
+
 nextToken:
     ld hl,0
 nextToken1:
-    call nextChar
-    cp " "                          ; is it whitespace?
-    jr nc,nextToken2
-    or a                            ; is it null, ie end of input
-    jr nz,nextToken1
-    ld a,EOF_
-    jr nextToken11
+    call nextChar                   ; Get the next character
+    cp " "                          ; Is it a space?
+    jr z,nextToken1                 ; If yes, skip it and get the next character
+    cp "\t"                         ; Is it a tab?
+    jr z,nextToken1                 ; If yes, skip it and get the next character
+    or a                            ; Is it null (end of input)?
+    jr nz,nextToken2                ; If not, continue to the next check
+    ld a,EOF_                       ; If yes, return with EOF token
+    ret
 nextToken2:
-    cp ";"                          ; is it a comment?
-    call nz,nextToken4
+    cp "\n"                         ; Is it a newline?
+    jr nz,nextToken2x               ; If not, continue to the next check
+    ld a,NEWLN_                     ; If yes, return with NEWLN token
+    ret
+nextToken2x:
+    cp ";"                          ; Is it a comment?
+    call nz,nextToken4              ; If not, continue to the next check
 nextToken3:
-    call nextChar                   ; loop until next control char
-    cp " "+1                        
+    call nextChar                   ; Get the next character in the comment
+    cp " "+1                        ; Loop until the next control character
     jr nc,nextToken3
-    ld a,COMMENT_
-    jr nextToken11
+    ld a,COMMENT_                   ; Return with COMMENT token
+    ret
 nextToken4:
-    cp "_"
-    jr z,nextToken5
-    call isAlphaNum
-    jr nc,nextToken7x
+    cp "_"                          ; Is it an identifier?
+    jr z,nextToken5                 ; If yes, continue to the next check
+    call isAlphaNum                 ; If not, check if it's alphanumeric
+    jr nc,nextToken7x               ; If not, continue to the next check
 nextToken5:
-    call ident
-    call nextChar
-    cp ":"
-    jr nz,nextToken6
-    ld a,LABEL_
-    jr nextToken11
+    call ident                      ; Parse the identifier
+    call nextChar                   ; Get the next character
+    cp ":"                          ; Is it a label?
+    jr nz,nextToken6                ; If not, continue to the next check
+    ld a,LABEL_                     ; If yes, return with LABEL token
+    ret
 nextToken6:    
-    call nz,pushBack
-    ld a,IDENT_
-    jr nextToken11
+    call nz,pushBack                ; Push back the character if it's not null
+    ld a,IDENT_                     ; Return with IDENT token
+    ret
 nextToken7x:
-    cp "."
-    jr nz,nextToken7
-    call directive
-    ld a,DIR_
-    jr nextToken11
+    cp "."                          ; Is it a directive?
+    jr nz,nextToken7                ; If not, continue to the next check
+    call directive                  ; Parse the directive
+    ld a,DIR_                       ; Return with DIR token
+    ret
 nextToken7:
-    cp "$"
-    jr nz,nextToken8
-    call nextChar
-    call isHexDigit
-    jr c,nextToken8
-    call pushBackChar
-    jr nextToken10
+    cp "$"                          ; Is it a hexadecimal number?
+    jr nz,nextToken8                ; If not, continue to the next check
+    call nextChar                   ; Get the next character
+    call isHexDigit                 ; Check if it's a hexadecimal digit
+    jr c,nextToken8                 ; If not, continue to the next check
+    call pushBackChar               ; Push back the character
+    jr nextToken10                  ; Jump to the next check
 nextToken8:        
-    call hex 
-    ld a,NUM_
-    jr nextToken11
-    cp "-"
-    jr z,nextToken9
-    call isDigit
-    jr nextToken10
+    call hex                        ; Parse the hexadecimal number
+    ld a,NUM_                       ; Return with NUM token
+    ret
+    cp "-"                          ; Is it a negative number?
+    jr z,nextToken9                 ; If yes, continue to the next check
+    call isDigit                    ; Check if it's a digit
+    jr nextToken10                  ; Jump to the next check
 nextToken9:
-    call number
-    ld a,NUM_
-    jr nextToken11
+    call number                     ; Parse the number
+    ld a,NUM_                       ; Return with NUM token
+    ret
 nextToken10:
-    ld l,a
-    ld h,0
-    ld a,SYM_
-nextToken11:
-    ld (vToken),a
-    ld (vTokenVal),hl
+    ld l,a                          ; Load the token into L
+    ld h,0                          ; Clear H
+    ld a,SYM_                       ; Return with SYM token
     ret
-
-number:
-    ld hl,0
-    ret
-
+    
 ; collects adds ident to string heap
 ; returns hl = ptr to ident
 ; destroys a,d,e,h,l
@@ -324,41 +336,42 @@ isDigit:
     ccf                             ; invert cf
     ret
 
-; nextChar: checks if there is a character that has been pushed back for re-reading. 
-; If there is, it retrieves that character, otherwise it fetches a new character 
-; from the input.
+; number: parse a number from the input. It handles both decimal and hexadecimal 
+; numbers, and also supports negative numbers.
 
-; Input: none
+; Input: None
 
 ; Output:
-; a: Contains the next character to be processed, either retrieved from the 
-; pushback buffer or fetched from the input.
+; hl: Contains the parsed number.
 
-; Destroyed: None. 
+; Destroyed: None
 
-nextChar:
-    bit 7, (vPushBack)              ; Check the high bit of the pushback buffer
-    jr z, getchar                   ; If the high bit is 0, jump to getchar
-    ld a, (vPushBack)               ; If the high bit is 1, load the pushed back character into A
-    and 0x7F                        ; Clear the high bit
-    ld (vPushBack), a               ; Store the character back in the buffer
-    ret                             ; Return with the pushed back character in A
+; vTemp1: A temporary memory location used to store the sign of the number.
 
-; pushBackChar: push back a character for re-reading. It sets the high bit of the 
-; character as a flag to indicate that this character has been pushed back, and 
-; stores the character in the pushback buffer.
-
-; Input:
-; a: Contains the character to be pushed back.
-
-; Output: None.
-
-; Destroyed: None. 
-
-pushBackChar:
-    or 0x80                         ; Set the high bit of the character to be pushed back
-    ld (vPushBack), a               ; Store the character in the pushback buffer
-    ret 
+number:
+    cp "-"                        ; Is it a negative number?
+    ld a,-1                       ; a = sign flag
+    jr z,num1                      
+    inc a                          
+num1:
+    ld (vTemp1),a                 ; Store the sign flag in vTemp1
+    call nextChar                 ; Get the next character
+    cp "$"                        ; Is it a hexadecimal number?
+    jr nz,num2                    
+    call hex                      ; If yes, parse the hexadecimal number
+    jr num3                       
+num2:
+    call pushBackChar             ; Push back the character
+    call decimal                  ; Parse the decimal number
+num3:
+    ld a,(vTemp1)                 ; Load the sign from vTemp1
+    inc a                         ; Increment a
+    ret nz                        
+    ex de,hl                      ; negate the value of HL
+    ld hl,0                       
+    or a                          
+    sbc hl,de                     
+    ret                           
     
 ; hex: parses a hexadecimal number
 
@@ -434,29 +447,42 @@ decimal1:
     jr decimal1                 ; Jump back to the start of the loop    
 
 
-num:
-	ld hl,$0000				    ; Clear hl to accept the number
-	ld a,(bc)				    ; Get numeral or -
-    cp '-'
-    jr nz,num0
-    inc bc                      ; move to next char, no flags affected
-num0:
-    ex af,af'                   ; save zero flag = 0 for later
-    call decimal
+; nextChar: checks if there is a character that has been pushed back for re-reading. 
+; If there is, it retrieves that character, otherwise it fetches a new character 
+; from the input.
 
-num2:
-    dec bc
-    ex af,af'                   ; restore zero flag
-    jr nz, num3
-    ex de,hl                    ; negate the value of hl
-    ld hl,0
-    or a                        ; jump to sub2
-    sbc hl,de    
-num3:
-    push hl                     ; Put the number on the stack
-    jp (iy)                     ; and process the next character
+; Input: none
 
+; Output:
+; a: Contains the next character to be processed, either retrieved from the 
+; pushback buffer or fetched from the input.
 
+; Destroyed: None. 
+
+nextChar:
+    bit 7, (vPushBack)              ; Check the high bit of the pushback buffer
+    jr z, getchar                   ; If the high bit is 0, jump to getchar
+    ld a, (vPushBack)               ; If the high bit is 1, load the pushed back character into A
+    and 0x7F                        ; Clear the high bit
+    ld (vPushBack), a               ; Store the character back in the buffer
+    ret                             ; Return with the pushed back character in A
+
+; pushBackChar: push back a character for re-reading. It sets the high bit of the 
+; character as a flag to indicate that this character has been pushed back, and 
+; stores the character in the pushback buffer.
+
+; Input:
+; a: Contains the character to be pushed back.
+
+; Output: None.
+
+; Destroyed: None. 
+
+pushBackChar:
+    or 0x80                         ; Set the high bit of the character to be pushed back
+    ld (vPushBack), a               ; Store the character in the pushback buffer
+    ret 
+    
 
 
 
