@@ -32,7 +32,9 @@ COMMENT_    .equ 2
 NUM_        .equ 3
 LABEL_      .equ 4
 IDENT_      .equ 5
-
+END_        .equ 6
+DIR_        .equ 7
+SYM_        .equ 8
 
 start:                      ; entry point of TecM8
     ld sp,STACK		        
@@ -138,7 +140,7 @@ nextToken5:
     ld a,LABEL_                     ; If yes, return with LABEL token
     ret
 nextToken6:    
-    call nz,pushBack                ; Push back the character if it's not null
+    call nz,pushBackChar            ; Push back the character if it's not null
     ld a,IDENT_                     ; Return with IDENT token
     ret
 nextToken7x:
@@ -447,6 +449,62 @@ decimal1:
     jr decimal1                 ; Jump back to the start of the loop    
 
 
+; SearchStrings: search through a list of Pascal strings for a match. 
+
+; Inputs:
+; hl: Points to the string to search for.
+; de: Points to the start of the list of strings.
+
+; Outputs:
+; cf: Set if a match is found
+; de: points to matching string
+
+; Destroyed:
+; a: Used to hold the length of the current string and the string to search for, and to compare characters.
+; b: Used to hold the length of the string for looping.
+; hl: Incremented to move through the string to search for.
+; de: Incremented to move through the list of strings and the current string.
+
+searchStrings:
+    ld a,(hl)                   ; Load the length of the string to search for
+    ld b,a                      ; Copy the length to B for looping
+    push de                     ; Store the address of the current string on the stack
+    cp (de)                     ; Compare with the length of the current string in the list
+    jr nz, nextString           ; If the lengths are not equal, move to the next string
+    inc hl                      ; Move to the start of the string data
+    inc de                      ; Move to the start of the string data
+
+compareChars:
+    ld a,(hl)                   ; Load the next character from the string to search for
+    cp (de)                     ; Compare with the next character in the current string
+    jr nz,nextString            ; If the characters are not equal, move to the next string
+    inc hl                      ; Move to the next character in the string to search for
+    inc de                      ; Move to the next character in the current string
+    djnz compareChars           ; Loop until we've compared all characters
+    scf                         ; Set the carry flag to indicate a match
+    ret 
+
+nextString:
+    pop de                      ; Restore the address of the current string from the stack
+                                ; Move DE to the start of the next string in the list
+    ld a,(de)                   ; Load the length of the current string
+    inc a                       ; a = length byte plus length of string
+    add a,e                     ; de += a
+    ld e,a
+    ld a,0
+    adc a,d
+    ld d,a
+    push de                     ; Store the address of the current string on the stack
+
+                                ; Check if we've reached the end of the list
+    ld a,(de)                   ; a = length of next string
+    or a                        ; If a is not zero, continue searching
+    jr nz,searchStrings          
+    scf                         ; clear carry flag, no match
+    ccf                         
+    pop de                      ; Clear the stack
+    ret 
+    
 ; nextChar: checks if there is a character that has been pushed back for re-reading. 
 ; If there is, it retrieves that character, otherwise it fetches a new character 
 ; from the input.
@@ -461,7 +519,7 @@ decimal1:
 
 nextChar:
     bit 7, (vPushBack)              ; Check the high bit of the pushback buffer
-    jr z, getchar                   ; If the high bit is 0, jump to getchar
+    jp z, getchar                   ; If the high bit is 0, jump to getchar
     ld a, (vPushBack)               ; If the high bit is 1, load the pushed back character into A
     and 0x7F                        ; Clear the high bit
     ld (vPushBack), a               ; Store the character back in the buffer
@@ -492,55 +550,57 @@ pushBackChar:
 
 
 
+
+
     
 
 
-    ld bc,(vCharPtr)
-    ld a,(bc)
-    inc bc
-    ld (vCharPtr),bc
-    or a
-    ret nz
-    call nextLine
-    jr nextChar
+;     ld bc,(vCharPtr)
+;     ld a,(bc)
+;     inc bc
+;     ld (vCharPtr),bc
+;     or a
+;     ret nz
+;     call nextLine
+;     jr nextChar
 
-nextLine:
-    call prompt
-    ld bc,chars             ; load bc with start of chars buffer         
-nextLine2:                  
-    call getchar            ; get character from serial port
-    cp $20			        ; compare to space
-    jr c,nextLine3		    
-    ld (bc),A               ; store the character in textbuf
-    inc bc
-    call putchar            ; echo character to screen
-    jr nextLine2            ; wait for next character
+; nextLine:
+;     call prompt
+;     ld bc,chars             ; load bc with start of chars buffer         
+; nextLine2:                  
+;     call getchar            ; get character from serial port
+;     cp $20			        ; compare to space
+;     jr c,nextLine3		    
+;     ld (bc),A               ; store the character in textbuf
+;     inc bc
+;     call putchar            ; echo character to screen
+;     jr nextLine2            ; wait for next character
 
-nextLine3:                  ; control char
-    cp '\r'                 ; carriage return? ascii 13
-    jr Z,nextLine4		    ; if anything else its control char
-    cp '\n'                 ; carriage return? ascii 13
-    jr Z,nextLine4		    ; if anything else its control char
-    cp CTRL_H               ; backSpace ?
-    jr nz,nextLine2         ; no, ignore
-    ld hl,chars             ; is bc already at start of chars buffer
-    or a
-    sbc hl,bc
-    ld a,h                   
-    or l
-    jr z, nextLine2         ; if so, ignore backspace
-    dec bc
-    call printStr           ; backspace over previous letter
-    .cstr "\b \b"           ; erase letter
-    jr nextLine2
+; nextLine3:                  ; control char
+;     cp '\r'                 ; carriage return? ascii 13
+;     jr Z,nextLine4		    ; if anything else its control char
+;     cp '\n'                 ; carriage return? ascii 13
+;     jr Z,nextLine4		    ; if anything else its control char
+;     cp CTRL_H               ; backSpace ?
+;     jr nz,nextLine2         ; no, ignore
+;     ld hl,chars             ; is bc already at start of chars buffer
+;     or a
+;     sbc hl,bc
+;     ld a,h                   
+;     or l
+;     jr z, nextLine2         ; if so, ignore backspace
+;     dec bc
+;     call printStr           ; backspace over previous letter
+;     .cstr "\b \b"           ; erase letter
+;     jr nextLine2
 
-nextLine4:
-    xor a                   ; store null in text buffer
-    ld (bc),a                
-    call crlf               ; echo newline to screen
-    ld bc,chars             ; Instructions stored on heap at address HERE, we pressed enter
-    ld (vCharPtr),bc        ; point vCharPtr to start of chars buffer
-    ret
+; nextLine4:
+;     xor a                   ; store null in text buffer
+;     ld (bc),a                
+;     call crlf               ; echo newline to screen
+;     ld bc,chars             ; Instructions stored on heap at address HERE, we pressed enter
+;     ld (vCharPtr),bc        ; point vCharPtr to start of chars buffer
+;     ret
 
 ; *******************************************************************************
 ; *********  END OF MAIN   ******************************************************
