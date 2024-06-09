@@ -33,7 +33,7 @@ NUM_        .equ 3
 LABEL_      .equ 4
 IDENT_      .equ 5
 END_        .equ 6
-DIR_        .equ 7
+DIRECT_        .equ 7
 SYM_        .equ 8
 
 start:                      ; entry point of TecM8
@@ -141,13 +141,15 @@ nextToken5:
     ret
 nextToken6:    
     call nz,pushBackChar            ; Push back the character if it's not null
-    ld a,IDENT_                     ; Return with IDENT token
+    call opcode
+    jr nc,nextToken7x
+    ld a,OPCODE_                    ; Return with IDENT token
     ret
 nextToken7x:
     cp "."                          ; Is it a directive?
     jr nz,nextToken7                ; If not, continue to the next check
     call directive                  ; Parse the directive
-    ld a,DIR_                       ; Return with DIR token
+    ld a,DIRECT_                    ; Return with DIRECT token
     ret
 nextToken7:
     cp "$"                          ; Is it a hexadecimal number?
@@ -201,64 +203,6 @@ ident1:
 directive:
     ld hl,0
     ret
-
-;     jr c,ident1                     ; loop while alpha numeric
-;     cp ":"
-;     jr nz,ident2
-;     call endStr
-;     scf
-;     ret
-; ident2:  
-;     call endStr
-;     scf                             ; clear carry flag
-;     ccf
-;     ret
-
-
-;     ld (hl),a                       ; write char
-;     inc hl
-;     call nextChar
-; ident3:  
-;     cp " "                          ; is it a control char? \0 \r \n ?
-;     jr c,ident5
-;     cp ","                          ; is it end of arg?
-;     jr z,ident5
-;     cp ";"                          ; is it a comment at end of line
-;     jr z,ident5
-;     cp ")"                          ; todo: check nesting
-;     jr z,ident5
-; ident4:
-;     call endStr
-;     scf                             ; clear carry flag
-;     ccf
-;     ret
-; ident5:
-;     call pushBackChar               ; push the char back to input
-;     jr ident4
-
-; endStr: completes adding a string to the strings heap area
-; and stores the length at the start of the string.
-
-; Input:
-; hl: points to the end of the string.
-
-; Output:
-; hl: points to the start of the string.
-; vStrPtr: is updated to pointer to memory after the string
-
-; Destroyed: None
-
-; endStr:
-;     ld de,(vStrPtr)                 ; de = string start
-;     ld (vStrPtr),hl                 ; update top of strings heap
-;     or a
-;     sbc hl,de                       ; hl = length, de = strPtr 
-;     ex de,hl                        ; e = len, hl = strPtr
-;     ld (hl),e                       ; save lsb(length)
-;     ret
-    
-
-
 
 ; isAlphaNum checks if the character in the a register is an alphanumeric character 
 ; (either uppercase or lowercase). 
@@ -452,57 +396,50 @@ decimal1:
 ; SearchStrings: search through a list of Pascal strings for a match. 
 
 ; Inputs:
-; hl: Points to the string to search for.
-; de: Points to the start of the list of strings.
+; de: Points to the string to search for.
+; hl: Points to the start of the list of strings.
 
 ; Outputs:
-; cf: Set if a match is found
-; de: points to matching string
+; a: Contains the index of the matching string if a match is found, 
+;    or -1 if no match is found.
 
-; Destroyed:
-; a: Used to hold the length of the current string and the string to search for, and to compare characters.
-; b: Used to hold the length of the string for looping.
-; hl: Incremented to move through the string to search for.
-; de: Incremented to move through the list of strings and the current string.
+; Destroyed: a,b,c,d,e,h,l
 
+    ld c, 0                     ; Initialize the index counter
 searchStrings:
-    ld a,(hl)                   ; Load the length of the string to search for
+    ld a,(de)                   ; Load the length of the string to search for
     ld b,a                      ; Copy the length to B for looping
-    push de                     ; Store the address of the current string on the stack
-    cp (de)                     ; Compare with the length of the current string in the list
+    push hl                     ; Store the address of the current string on the stack
+    cp (hl)                     ; Compare with the length of the current string in the list
     jr nz, nextString           ; If the lengths are not equal, move to the next string
-    inc hl                      ; Move to the start of the string data
     inc de                      ; Move to the start of the string data
+    inc hl                      ; Move to the start of the string data
 
 compareChars:
-    ld a,(hl)                   ; Load the next character from the string to search for
-    cp (de)                     ; Compare with the next character in the current string
+    ld a,(de)                   ; Load the next character from the string to search for
+    cp (hl)                     ; Compare with the next character in the current string
     jr nz,nextString            ; If the characters are not equal, move to the next string
-    inc hl                      ; Move to the next character in the string to search for
-    inc de                      ; Move to the next character in the current string
+    inc de                      ; Move to the next character in the string to search for
+    inc hl                      ; Move to the next character in the current string
     djnz compareChars           ; Loop until we've compared all characters
-    scf                         ; Set the carry flag to indicate a match
+    ld a,c                      ; Load the index of the matching string into A
     ret 
 
 nextString:
-    pop de                      ; Restore the address of the current string from the stack
-                                ; Move DE to the start of the next string in the list
-    ld a,(de)                   ; Load the length of the current string
+    pop hl                      ; Restore the address of the current string from the stack
+    ld a,(hl)                   ; Load the length of the current string
     inc a                       ; a = length byte plus length of string
-    add a,e                     ; de += a
-    ld e,a
+    add a,l                     ; hl += a
+    ld l,a
     ld a,0
-    adc a,d
-    ld d,a
-    push de                     ; Store the address of the current string on the stack
-
-                                ; Check if we've reached the end of the list
-    ld a,(de)                   ; a = length of next string
+    adc a,h
+    ld h,a
+    push hl                     ; Store the address of the current string on the stack
+    inc c                       ; Increment the index counter
+    ld a,(hl)                   ; a = length of next string
     or a                        ; If a is not zero, continue searching
     jr nz,searchStrings          
-    scf                         ; clear carry flag, no match
-    ccf                         
-    pop de                      ; Clear the stack
+    ld a,-1                     ; No match found, return -1
     ret 
     
 ; nextChar: checks if there is a character that has been pushed back for re-reading. 
@@ -541,208 +478,6 @@ pushBackChar:
     ld (vPushBack), a               ; Store the character in the pushback buffer
     ret 
     
-
-
-
-
-
-
-
-
-
-
-
-    
-
-
-;     ld bc,(vCharPtr)
-;     ld a,(bc)
-;     inc bc
-;     ld (vCharPtr),bc
-;     or a
-;     ret nz
-;     call nextLine
-;     jr nextChar
-
-; nextLine:
-;     call prompt
-;     ld bc,chars             ; load bc with start of chars buffer         
-; nextLine2:                  
-;     call getchar            ; get character from serial port
-;     cp $20			        ; compare to space
-;     jr c,nextLine3		    
-;     ld (bc),A               ; store the character in textbuf
-;     inc bc
-;     call putchar            ; echo character to screen
-;     jr nextLine2            ; wait for next character
-
-; nextLine3:                  ; control char
-;     cp '\r'                 ; carriage return? ascii 13
-;     jr Z,nextLine4		    ; if anything else its control char
-;     cp '\n'                 ; carriage return? ascii 13
-;     jr Z,nextLine4		    ; if anything else its control char
-;     cp CTRL_H               ; backSpace ?
-;     jr nz,nextLine2         ; no, ignore
-;     ld hl,chars             ; is bc already at start of chars buffer
-;     or a
-;     sbc hl,bc
-;     ld a,h                   
-;     or l
-;     jr z, nextLine2         ; if so, ignore backspace
-;     dec bc
-;     call printStr           ; backspace over previous letter
-;     .cstr "\b \b"           ; erase letter
-;     jr nextLine2
-
-; nextLine4:
-;     xor a                   ; store null in text buffer
-;     ld (bc),a                
-;     call crlf               ; echo newline to screen
-;     ld bc,chars             ; Instructions stored on heap at address HERE, we pressed enter
-;     ld (vCharPtr),bc        ; point vCharPtr to start of chars buffer
-;     ret
-
-; *******************************************************************************
-; *********  END OF MAIN   ******************************************************
-; *******************************************************************************
-
-; next:                           
-;     inc bc                  ; Increment the IP
-;     ld a,(bc)               ; Get the next character and dispatch
-;     or a                    ; is it NUL?       
-;     jr z,exit
-;     cp "\n"                 ; is it newline?
-;     jr z,interpret
-;     cp "0"
-;     ld d,"!"
-;     jr c,op
-;     cp "9"+1
-;     jr c,num
-;     cp "A"
-;     ld d,"!"+10
-;     jr c,op
-;     cp "Z"+1
-;     jr c,callx
-;     cp "a"
-;     ld d,"!"+10+26
-;     jr c,op
-;     cp "z"+1
-;     jp c,var
-;     ld d,"!"+10+26+26
-; op:    
-;     sub d
-;     jr c,next
-;     add a,lsb(opcodes)
-;     ld l,A                      ; Index into table
-;     ld h,msb(opcodes)           ; Start address of jump table         
-;     ld l,(hl)                   ; get low jump address
-;     inc h                       ; msb on next page
-;     jp (hl)                     ; Jump to routine
-
-; exit:
-;     inc bc			; store offests into a table of bytes, smaller
-;     ld de,bc                
-;     ld ix,(vBasePtr)        ; 
-;     call rpop               ; Restore old base pointer
-;     ld (vBasePtr),hl
-;     call rpop               ; Restore Instruction pointer
-;     ld bc,hl
-;     EX de,hl
-;     jp (hl)
-
-; num:
-; 	ld hl,$0000				    ; Clear hl to accept the number
-;     cp '-'
-;     jr nz,num0
-;     inc bc                      ; move to next char, no flags affected
-; num0:
-;     ex af,af'                   ; save zero flag = 0 for later
-; num1:
-;     ld a,(bc)                   ; read digit    
-;     sub "0"                     ; less than 0?
-;     jr c, num2                  ; not a digit, exit loop 
-;     cp 10                       ; greater that 9?
-;     jr nc, num2                 ; not a digit, exit loop
-;     inc bc                      ; inc IP
-;     ld de,hl                    ; multiply hl * 10
-;     add hl,hl    
-;     add hl,hl    
-;     add hl,de    
-;     add hl,hl    
-;     add a,l                     ; add digit in a to hl
-;     ld l,a
-;     ld a,0
-;     adc a,h
-;     ld h,a
-;     jr num1 
-; num2:
-;     dec bc
-;     ex af,af'                   ; restore zero flag
-;     jr nz, num3
-;     ex de,hl                    ; negate the value of hl
-;     ld hl,0
-;     or a                        ; jump to sub2
-;     sbc hl,de    
-; num3:
-;     push hl                     ; Put the number on the stack
-;     jp (iy)                     ; and process the next character
-
-; callx:
-;     call lookupRef0
-;     ld E,(hl)
-;     inc hl
-;     ld D,(hl)
-;     ld a,D                      ; skip if destination address is null
-;     or E
-;     jr Z,call2
-;     ld hl,bc
-;     inc bc                      ; read next char from source
-;     ld a,(bc)                   ; if ; to tail call optimise
-;     cp ";"                      ; by jumping to rather than calling destination
-;     jr Z,call1
-;     call rpush                  ; save Instruction Pointer
-;     ld hl,(vBasePtr)
-;     call rpush
-;     ld (vBasePtr),ix
-; call1:
-;     ld bc,de
-;     dec bc
-; call2:
-;     jp (iy) 
-    
-; var:
-;     ld hl,vars
-;     call lookupRef
-; var1:
-;     ld (vPointer),hl
-;     ld d,0
-;     ld e,(hl)
-;     ld a,(vByteMode)                   
-;     inc a                       ; is it byte?
-;     jr z,var2
-;     inc hl
-;     ld d,(hl)
-; var2:
-;     push de
-;     jp (iy)
-
-; lookupRef0:
-;     ld hl,defs
-;     sub "A"
-;     jr lookupRef1        
-; lookupRef:
-;     sub "a"
-; lookupRef1:
-;     add a,a
-;     add a,l
-;     ld l,a
-;     ld a,0
-;     ADC a,h
-;     ld h,a
-;     XOR a
-;     or e                        ; sets Z flag if A-Z
-;     ret
-
 prompt:                            
     call printStr
     .cstr "\r\n> "
@@ -753,23 +488,16 @@ crlf:
     .cstr "\r\n"
     ret
 
-; printStr:                           
-;     EX (sp),hl		                ; swap			
-;     call putStr		
-;     inc hl			                ; inc past null
-;     EX (sp),hl		                ; put it back	
-;     ret
+error:
+    pop hl
+    call putStr
+    halt
 
 printStr:                           
     pop hl		                    ; "return" address is address of string			
     call putStr		
     inc hl			                ; inc past null
     jp (hl)		                    ; put it back	
-
-error:
-    pop hl
-    call putStr
-    halt
 
 putStr0:                            
     call putchar
@@ -780,187 +508,7 @@ putStr:
     jr nz,putStr0
     ret
 
-rpush:                              
-    dec ix                  
-    ld (ix+0),H
-    dec ix
-    ld (ix+0),L
-    ret
-
-rpop:                               
-    ld L,(ix+0)         
-    inc ix              
-    ld H,(ix+0)
-    inc ix                  
-rpop2:
-    ret
-
-; enter:                              
-;     ld hl,bc
-;     call rpush                      ; save Instruction Pointer
-;     ld hl,(vBasePtr)
-;     call rpush
-;     ld (vBasePtr),ix
-;     pop bc
-;     dec bc
-;     jp (iy)                    
-
-; hl = value
-printDec:    
-    bit 7,h
-    jr z,printDec2
-    ld a,'-'
-    call putchar
-    xor a  
-    sub l  
-    ld l,a
-    sbc a,a  
-    sub h  
-    ld h,a
-printDec2:        
-    push bc
-    ld c,0                      ; leading zeros flag = false
-    ld de,-10000
-    call printDec4
-    ld de,-1000
-    call printDec4
-    ld de,-100
-    call printDec4
-    ld e,-10
-    call printDec4
-    inc c                       ; flag = true for at least digit
-    ld e,-1
-    call printDec4
-    pop bc
-    ret
-printDec4:
-    ld b,'0'-1
-printDec5:	    
-    inc b
-    add hl,de
-    jr c,printDec5
-    sbc hl,de
-    ld a,'0'
-    cp b
-    jr nz,printDec6
-    xor a
-    or c
-    ret z
-    jr printDec7
-printDec6:	    
-    inc c
-printDec7:	    
-    ld a,b
-    jp putchar
-
-; def:                                ; Create a colon definition
-;     inc bc
-;     ld  a,(bc)                  ; Get the next character
-;     cp ":"                      ; is it anonymouse
-;     jr nz,def0
-;     inc bc
-;     ld de,(vHeapPtr)            ; return start of definition
-;     push de
-;     jr def1
-; def0:    
-;     call lookupRef0
-;     ld de,(vHeapPtr)            ; start of defintion
-;     ld (hl),E                   ; Save low byte of address in CFA
-;     inc hl              
-;     ld (hl),D                   ; Save high byte of address in CFA+1
-;     inc bc
-; def1:                               ; Skip to end of definition   
-;     ld a,(bc)                   ; Get the next character
-;     inc bc                      ; Point to next character
-;     ld (de),A
-;     inc de
-;     cp ";"                      ; Is it a semicolon 
-;     jr Z, def2                  ; end the definition
-;     jr  def1                    ; get the next element
-; def2:    
-;     dec bc
-; def3:
-;     ld (vHeapPtr),de            ; bump heap ptr to after definiton
-;     jp (iy)       
-
-; opcodes:
-;     db    lsb(bang_)        ;   !            
-;     db    lsb(dquote_)      ;   "
-;     db    lsb(hash_)        ;   #
-;     db    lsb(dollar_)      ;   $            
-;     db    lsb(percent_)     ;   %            
-;     db    lsb(amper_)       ;   &
-;     db    lsb(quote_)       ;   '
-;     db    lsb(lparen_)      ;   (        
-;     db    lsb(rparen_)      ;   )
-;     db    lsb(star_)        ;   *            
-;     db    lsb(plus_)        ;   +
-;     db    lsb(comma_)       ;   ,            
-;     db    lsb(minus_)       ;   -
-;     db    lsb(dot_)         ;   .
-;     db    lsb(slash_)       ;   /	
-
-;     db    lsb(colon_)       ;    :        
-;     db    lsb(semi_)        ;    ;
-;     db    lsb(lt_)          ;    <
-;     db    lsb(eq_)          ;    =            
-;     db    lsb(gt_)          ;    >            
-;     db    lsb(question_)    ;    ?   
-;     db    lsb(at_)          ;    @    
-
-;     db    lsb(lbrack_)      ;    [
-;     db    lsb(bslash_)      ;    \
-;     db    lsb(rbrack_)      ;    ]
-;     db    lsb(caret_)       ;    ^
-;     db    lsb(underscore_)  ;    _   
-;     db    lsb(grave_)       ;    `           
-
-;     db    lsb(lbrace_)      ;    {
-;     db    lsb(pipe_)        ;    |            
-;     db    lsb(rbrace_)      ;    }            
-;     db    lsb(tilde_)       ;    ~             
-
-; .align $100
-
-; nop_:
-; bslash_:
-; quote_:                          ; Discard the top member of the stack
-; at_:
-; underscore_: 
-; percent_:  
-; amper_:        
-; pipe_: 		 
-; caret_:		 
-; tilde_:                               
-; invert:				        ; Bitwise INVert the top member of the stack
-; dquote_:        
-; comma_:                          ; print hexadecimal
-; lbrace_:   
-; rbrace_:    
-; dollar_:        
-; minus_:       		        ; Subtract the value 2nd on stack from top of stack 
-; eq_:    
-; gt_:    
-; lt_:    
-; grave_:                         
-; rparen_: 
-; lbrack_:
-; rbrack_:
-; lparen_: 
-; slash_:   
-; question_:
-; hash_:
-; star_:   
-;     jp (iy)
-
-; bang_:                      ; Store the value at the address placed on the top of the stack
-
-; plus_:                           ; add the top 2 members of the stack
-
-; dot_:       
-
-; semi_:
-
-; colon_:   
-
+; *******************************************************************************
+; *********  END OF MAIN   ******************************************************
+; *******************************************************************************
 

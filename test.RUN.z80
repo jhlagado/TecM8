@@ -33,5 +33,6 @@ startTest:
     JP program
 
 .include "MAIN.asm"
+.include "data.asm"
 .include "ram.asm"
 

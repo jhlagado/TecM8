@@ -6,4 +6,5 @@
     jp   start              ; into #180 of the prog
 
 .include "MAIN.asm"
+.include "data.asm"
 .include "ram.asm"

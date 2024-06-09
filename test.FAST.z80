@@ -8,6 +8,7 @@
     JP testsStart
     
     .include "MAIN.asm"
+    .include "data.asm"
     .include "ram.asm"
     
     .org $4000
