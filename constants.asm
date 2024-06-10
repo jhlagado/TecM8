@@ -8,16 +8,23 @@ CTRL_H      .equ    8
 
 tokens:
 
-UNKNOWN_    .equ    -1
+COMMA_      .equ    ","
+COMMENT_    .equ    ";"
+DIRECT_     .equ    "D"
+ASMLOC_     .equ    "$"
+END_        .equ    "E"
 EOF_        .equ    0
-NEWLN_      .equ    1
-COMMENT_    .equ    2
-NUM_        .equ    3
-LABEL_      .equ    4
-IDENT_      .equ    5
-END_        .equ    6
-OPCODE_     .equ    7
-DIRECT_     .equ    8
+FLAG_       .equ    "F"
+IDENT_      .equ    "I"
+LABEL_      .equ    "L"
+NEWLN_      .equ    "\n"
+NUM_        .equ    "9"
+OPCODE_     .equ    "C"
+PARCLOSE_   .equ    ")"
+PAROPEN_    .equ    "("
+REG_        .equ    "R"
+REGPAIR_    .equ    "P"
+UNKNOWN_    .equ    -1
 
 opcode_idx:
 
@@ -99,12 +106,8 @@ H_          .equ    4           ; H
 L_          .equ    5           ; L
 MHL_        .equ    6           ; (HL)
 A_          .equ    7           ; A
-MIX_        .equ    8           ; (IX + expr)
-MIY_        .equ    9           ; (IY + expr)
-MBC_        .equ    10          ; (BC)
-MDE_        .equ    11          ; (DE)
-I_          .equ    12          ; I
-R_          .equ    12          ; R
+I_          .equ    8           ; I
+R_          .equ    9           ; R
 
 reg_pair_idx:
 
@@ -112,8 +115,10 @@ BC_         .equ    0
 DE_         .equ    1
 HL_         .equ    2
 SP_         .equ    3
-AF_         .equ    3           ; duplicated on purpose
-AFP_        .equ    4           ; AF prime
+AF_         .equ    4           ; NOTE: AF has the same code as SP in some instructions
+IX_         .equ    5
+IY_         .equ    6
+AFP_        .equ    7           ; AF' (prime)
 
 flag_idx:
 
@@ -125,6 +130,15 @@ PO_         .equ    4
 PE_         .equ    5
 P_          .equ    6
 M_          .equ    7
+
+directive_idx:
+
+ALIGN_      .equ    0                    
+DB_         .equ    1               
+ORG_        .equ    2 
+SET_        .equ    3
+
+; -----------------------------------------------------------------------------------------------
 
 TEC_1       .EQU 1
 RC2014      .EQU 0

@@ -3,7 +3,7 @@
 .include "constants.asm"
 .include "IOSerial.asm"
 
-    jp   start              ; into #180 of the prog
+    jp   start              
 
 .include "MAIN.asm"
 .include "data.asm"

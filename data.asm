@@ -69,7 +69,7 @@ opcodes:
 .pstr "XOR"
 .pstr ""                    ; terminate list with a string of zero length
 
-reg:
+registers:
 
 .pstr "B"
 .pstr "C"
@@ -77,12 +77,8 @@ reg:
 .pstr "E"
 .pstr "H"
 .pstr "L"
-.pstr "(HL)"
+.pstr " "                   ; don't match, stand-in for (HL)
 .pstr "A"
-.pstr "(IX + expr)"
-.pstr "(IY + expr)"
-.pstr "(BC)"
-.pstr "(DE)"
 .pstr "I"
 .pstr "R"
 .pstr ""                    ; terminate list with a string of zero length
@@ -93,7 +89,9 @@ reg_pairs:
 .pstr "DE"
 .pstr "HL"
 .pstr "SP"
-.pstr "AF"
+.pstr "AF"                  ; NOTE: AF has the same code as SP in some instructions
+.pstr "IX"
+.pstr "IY"
 .pstr "AF'"
 .pstr ""                    ; terminate list with a string of zero length
 
@@ -107,6 +105,14 @@ flags:
 .pstr "PE"
 .pstr "P"
 .pstr "M"
+.pstr ""                    ; terminate list with a string of zero length
+
+directives:
+
+.pstr ".ALIGN"                    
+.pstr ".DB"                    
+.pstr ".ORG"                    
+.pstr ".SET"                    
 .pstr ""                    ; terminate list with a string of zero length
 
 ; *******************************************************************************

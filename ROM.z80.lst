@@ -7,16 +7,23 @@
 0000                NO_MATCH:   EQU   -1   
 0000                CTRL_H:   EQU   8   
 0000                TOKENS:      
-0000                UNKNOWN_:   EQU   -1   
+0000                COMMA_:   EQU   ","   
+0000                COMMENT_:   EQU   ";"   
+0000                DIRECT_:   EQU   "D"   
+0000                ASMLOC_:   EQU   "$"   
+0000                END_:     EQU   "E"   
 0000                EOF_:     EQU   0   
-0000                NEWLN_:   EQU   1   
-0000                COMMENT_:   EQU   2   
-0000                NUM_:     EQU   3   
-0000                LABEL_:   EQU   4   
-0000                IDENT_:   EQU   5   
-0000                END_:     EQU   6   
-0000                OPCODE_:   EQU   7   
-0000                DIRECT_:   EQU   8   
+0000                FLAG_:    EQU   "F"   
+0000                IDENT_:   EQU   "I"   
+0000                LABEL_:   EQU   "L"   
+0000                NEWLN_:   EQU   "\n"   
+0000                NUM_:     EQU   "9"   
+0000                OPCODE_:   EQU   "C"   
+0000                PARCLOSE_:   EQU   ")"   
+0000                PAROPEN_:   EQU   "("   
+0000                REG_:     EQU   "R"   
+0000                REGPAIR_:   EQU   "P"   
+0000                UNKNOWN_:   EQU   -1   
 0000                OPCODE_IDX:      
 0000                ADC_:     EQU   0   
 0000                ADD_:     EQU   1   
@@ -94,19 +101,17 @@
 0000                L_:       EQU   5   ; L
 0000                MHL_:     EQU   6   ; (HL)
 0000                A_:       EQU   7   ; A
-0000                MIX_:     EQU   8   ; (IX + expr)
-0000                MIY_:     EQU   9   ; (IY + expr)
-0000                MBC_:     EQU   10   ; (BC)
-0000                MDE_:     EQU   11   ; (DE)
-0000                I_:       EQU   12   ; I
-0000                R_:       EQU   12   ; R
+0000                I_:       EQU   8   ; I
+0000                R_:       EQU   9   ; R
 0000                REG_PAIR_IDX:      
 0000                BC_:      EQU   0   
 0000                DE_:      EQU   1   
 0000                HL_:      EQU   2   
 0000                SP_:      EQU   3   
-0000                AF_:      EQU   3   ; duplicated on purpose
-0000                AFP_:     EQU   4   ; AF prime
+0000                AF_:      EQU   4   ; NOTE: AF has the same code as SP in some instructions
+0000                IX_:      EQU   5   
+0000                IY_:      EQU   6   
+0000                AFP_:     EQU   7   ; AF' (prime)
 0000                FLAG_IDX:      
 0000                NZ_:      EQU   0   
 0000                Z_:       EQU   1   
@@ -116,6 +121,12 @@
 0000                PE_:      EQU   5   
 0000                P_:       EQU   6   
 0000                M_:       EQU   7   
+0000                DIRECTIVE_IDX:      
+0000                ALIGN_:   EQU   0   
+0000                DB_:      EQU   1   
+0000                ORG_:     EQU   2   
+0000                SET_:     EQU   3   
+0000                             ; -----------------------------------------------------------------------------------------------
 0000                TEC_1:    EQU   1   
 0000                RC2014:   EQU   0   
 0000                EXTENDED:   EQU   0   
@@ -625,7 +636,7 @@
 00C3                             ; 
 00C3                             ; 
 00C3                             ; 
-00C3   C3 80 01               JP   start   ; into #180 of the prog
+00C3   C3 80 01               JP   start   
 00C6                             ; 
 00C6                             ; *************************************************************************
 00C6                             ; 
@@ -645,8 +656,8 @@
 0180                START:       ; entry point of TecM8
 0180   31 28 0A               LD   sp,STACK   
 0183   CD 98 01               CALL   init   
-0186   CD A4 03               CALL   printStr   
-0189   54 65 63 4D 38 20 30 2E 30 0D 0A 00 .CSTR   "TecM8 0.0\r\n"   
+0186   CD D8 03               CALL   print   
+0189   0B 54 65 63 4D 38 20 30 2E 30 0D 0A .PSTR   "TecM8 0.0\r\n"   
 0195   C3 C1 01               JP   parse   
 0198                INIT:        
 0198   AF                     XOR   a   
@@ -666,19 +677,19 @@
 01C0   C9                     RET      
 01C1                PARSE:       
 01C1   CD E8 01               CALL   statementList   
-01C4   CD A4 03               CALL   printStr   
-01C7   50 61 72 73 69 6E 67 20 63 6F 6D 70 6C 65 74 65 64 20 73 75 63 63 65 73 73 66 75 6C 6C 79 2E 00 .CSTR   "Parsing completed successfully."   ; 
+01C4   CD D8 03               CALL   print   
+01C7   1F 50 61 72 73 69 6E 67 20 63 6F 6D 70 6C 65 74 65 64 20 73 75 63 63 65 73 73 66 75 6C 6C 79 2E .PSTR   "Parsing completed successfully."   ; 
 01E7   76                     HALT      
 01E8                STATEMENTLIST:      
 01E8   3A 1B 08               LD   a,(vToken)   
 01EB   FE 00                  CP   EOF_   
 01ED   C8                     RET   z   
 01EE   CD 0C 02               CALL   statement   
-01F1   FE 06                  CP   END_   
+01F1   FE 45                  CP   END_   
 01F3   CD 0D 02               CALL   match   
 01F6   28 F0                  JR   z,statementList   
-01F8   CD 9F 03               CALL   error   
-01FB   45 78 70 65 63 74 65 64 20 6E 65 77 6C 69 6E 65 00 .CSTR   "Expected newline"   
+01F8   CD D3 03               CALL   error   
+01FB   10 45 78 70 65 63 74 65 64 20 6E 65 77 6C 69 6E 65 .PSTR   "Expected newline"   
 020C                STATEMENT:      
 020C   C9                     RET      
 020D                MATCH:       
@@ -700,464 +711,559 @@
 0216                NEXTTOKEN:      
 0216   21 00 00               LD   hl,0   
 0219                NEXTTOKEN1:      
-0219   CD 7B 03               CALL   nextChar   ; Get the next character
-021C   FE 20                  CP   " "   ; Is it a space?
-021E   28 F9                  JR   z,nextToken1   ; If yes, skip it and get the next character
-0220   FE 09                  CP   "\t"   ; Is it a tab?
-0222   28 F5                  JR   z,nextToken1   ; If yes, skip it and get the next character
-0224   B7                     OR   a   ; Is it null (end of input)?
-0225   20 03                  JR   nz,nextToken2   ; If not, continue to the next check
-0227   3E 00                  LD   a,EOF_   ; If yes, return with EOF token
-0229   C9                     RET      
-022A                NEXTTOKEN2:      
-022A   FE 0A                  CP   "\n"   ; Is it a newline?
-022C   20 03                  JR   nz,nextToken2x   ; If not, continue to the next check
-022E   3E 01                  LD   a,NEWLN_   ; If yes, return with NEWLN token
-0230   C9                     RET      
-0231                NEXTTOKEN2X:      
-0231   FE 3B                  CP   ";"   ; Is it a comment?
-0233   C4 40 02               CALL   nz,nextToken4   ; If not, continue to the next check
-0236                NEXTTOKEN3:      
-0236   CD 7B 03               CALL   nextChar   ; Get the next character in the comment
-0239   FE 21                  CP   " "+1   ; Loop until the next control character
-023B   30 F9                  JR   nc,nextToken3   
-023D   3E 02                  LD   a,COMMENT_   ; Return with COMMENT token
-023F   C9                     RET      
-0240                NEXTTOKEN4:      
-0240   FE 5F                  CP   "_"   ; Is it an identifier?
-0242   28 05                  JR   z,nextToken5   ; If yes, continue to the next check
-0244   CD C5 02               CALL   isAlphaNum   ; If not, check if it's alphanumeric
-0247   30 18                  JR   nc,nextToken7x   ; If not, continue to the next check
-0249                NEXTTOKEN5:      
-0249   CD 97 02               CALL   ident   ; Parse the identifier
-024C   CD 7B 03               CALL   nextChar   ; Get the next character
-024F   FE 3A                  CP   ":"   ; Is it a label?
-0251   20 03                  JR   nz,nextToken6   ; If not, continue to the next check
-0253   3E 04                  LD   a,LABEL_   ; If yes, return with LABEL token
-0255   C9                     RET      
-0256                NEXTTOKEN6:      
-0256   C4 89 03               CALL   nz,pushBackChar   ; Push back the character if it's not null
-0259   CD B7 02               CALL   opcode   
-025C   28 03                  JR   z,nextToken7x   
-025E   3E 07                  LD   a,OPCODE_   ; Return with IDENT token
-0260   C9                     RET      
-0261                NEXTTOKEN7X:      
-0261   FE 2E                  CP   "."   ; Is it a directive?
-0263   20 06                  JR   nz,nextToken7   ; If not, continue to the next check
-0265   CD C1 02               CALL   directive   ; Parse the directive
-0268   3E 08                  LD   a,DIRECT_   ; Return with DIRECT token
-026A   C9                     RET      
-026B                NEXTTOKEN7:      
-026B   FE 24                  CP   "$"   ; Is it a hexadecimal number?
-026D   20 0D                  JR   nz,nextToken8   ; If not, continue to the next check
-026F   CD 7B 03               CALL   nextChar   ; Get the next character
-0272   CD D7 02               CALL   isHexDigit   ; Check if it's a hexadecimal digit
-0275   38 05                  JR   c,nextToken8   ; If not, continue to the next check
-0277   CD 89 03               CALL   pushBackChar   ; Push back the character
-027A   18 15                  JR   nextToken10   ; Jump to the next check
-027C                NEXTTOKEN8:      
-027C   CD 0D 03               CALL   hex   ; Parse the hexadecimal number
-027F   3E 03                  LD   a,NUM_   ; Return with NUM token
-0281   C9                     RET      
-0282   FE 2D                  CP   "-"   ; Is it a negative number?
-0284   28 05                  JR   z,nextToken9   ; If yes, continue to the next check
-0286   CD DD 02               CALL   isDigit   ; Check if it's a digit
-0289   18 06                  JR   nextToken10   ; Jump to the next check
-028B                NEXTTOKEN9:      
-028B   CD E4 02               CALL   number   ; Parse the number
-028E   3E 03                  LD   a,NUM_   ; Return with NUM token
-0290   C9                     RET      
-0291                NEXTTOKEN10:      
-0291   6F                     LD   l,a   ; Load the token into L
-0292   26 00                  LD   h,0   ; Clear H
-0294   3E FF                  LD   a,UNKNOWN_   ; Return with UNKNOWN token
-0296   C9                     RET      
-0297                             ; collects adds ident to string heap
-0297                             ; returns hl = ptr to ident
-0297                             ; destroys a,d,e,h,l
-0297                             ; updates vStrPtr
-0297                IDENT:       
-0297   2A 22 08               LD   hl,(vStrPtr)   ; hl = top of strings heap
-029A   23                     INC   hl   ; skip length byte
-029B                IDENT1:      
-029B   77                     LD   (hl),a   ; write char
-029C   23                     INC   hl   
-029D   CD 7B 03               CALL   nextChar   
-02A0   FE 5F                  CP   "_"   
-02A2   28 F7                  JR   z,ident1   
-02A4   CD C5 02               CALL   isAlphanum   
-02A7   CD 89 03               CALL   pushBackChar   
-02AA   ED 5B 22 08            LD   de,(vStrPtr)   ; de = string start
-02AE   22 22 08               LD   (vStrPtr),hl   ; update top of strings heap
-02B1   B7                     OR   a   
-02B2   ED 52                  SBC   hl,de   ; hl = length, de = strPtr
-02B4   EB                     EX   de,hl   ; e = len, hl = strPtr
-02B5   73                     LD   (hl),e   ; save lsb(length)
-02B6   C9                     RET      
-02B7                OPCODE:      
-02B7   EB                     EX   de,hl   ; de = string to search for
-02B8   21 B3 03               LD   hl,opcodes   ; list of strings to search
-02BB   CD 55 03               CALL   searchStr   
-02BE   FE FF                  CP   NO_MATCH   ; update zero flag
-02C0   C9                     RET      
-02C1                DIRECTIVE:      
-02C1   21 00 00               LD   hl,0   
+0219   CD AF 03               CALL   nextChar   ; Get the next character
+021C   CD EA 02               CALL   isSpace   ; Is it a space?
+021F   28 F8                  JR   z,nextToken1   ; If yes, skip it and get the next character
+0221   B7                     OR   a   ; Is it null (end of input)?
+0222   20 03                  JR   nz,nextToken2   ; If not, continue to the next check
+0224   3E 00                  LD   a,EOF_   ; If yes, return with EOF token
+0226   C9                     RET      
+0227                NEXTTOKEN2:      
+0227   FE 0A                  CP   "\n"   ; Is it a newline?
+0229   20 03                  JR   nz,nextToken2x   ; If not, continue to the next check
+022B   3E 0A                  LD   a,NEWLN_   ; If yes, return with NEWLN token
+022D   C9                     RET      
+022E                NEXTTOKEN2X:      
+022E   FE 3B                  CP   ";"   ; Is it a comment?
+0230   C4 3D 02               CALL   nz,nextToken4   ; If not, continue to the next check
+0233                NEXTTOKEN3:      
+0233   CD AF 03               CALL   nextChar   ; Get the next character in the comment
+0236   FE 21                  CP   " "+1   ; Loop until the next control character
+0238   30 F9                  JR   nc,nextToken3   
+023A   3E 3B                  LD   a,COMMENT_   ; Return with COMMENT token
+023C   C9                     RET      
+023D                NEXTTOKEN4:      
+023D   FE 5F                  CP   "_"   ; Is it an identifier?
+023F   28 05                  JR   z,nextToken5   ; If yes, continue to the next check
+0241   CD F0 02               CALL   isAlphaNum   ; If not, check if it's alphanumeric
+0244   30 4D                  JR   nc,nextToken7   ; If not, continue to the next check
+0246                NEXTTOKEN5:      
+0246   CD C5 02               CALL   ident   ; Parse the identifier
+0249   CD AF 03               CALL   nextChar   ; Get the next character
+024C   FE 3A                  CP   ":"   ; Is it a label?
+024E   20 03                  JR   nz,nextToken6   ; If not, continue to the next check
+0250   3E 4C                  LD   a,LABEL_   ; If yes, return with LABEL token
+0252   C9                     RET      
+0253                NEXTTOKEN6:      
+0253   CD BD 03               CALL   pushBackChar   ; Push back the character
+0256   22 22 08               LD   (vStrPtr),hl   ; restore string heap ptr to prev location
+0259   11 EA 03               LD   de,opcodes   ; list of opcodes to search
+025C   CD 85 03               CALL   searchStr   
+025F   30 03                  JR   nc,nextToken7z   
+0261   3E 43                  LD   a,OPCODE_   ; Return with IDENT token
+0263   C9                     RET      
+0264                NEXTTOKEN7Z:      
+0264   11 12 05               LD   de,reg_pairs   ; list of register pairs to search
+0267   CD 85 03               CALL   searchStr   
+026A   30 03                  JR   nc,nextToken7y   
+026C   3E 50                  LD   a,REGPAIR_   ; Return with REGPAIR token
+026E   C9                     RET      
+026F                NEXTTOKEN7Y:      
+026F   11 FD 04               LD   de,registers   ; list of registers to search
+0272   CD 85 03               CALL   searchStr   
+0275   30 03                  JR   nc,nextToken7x   
+0277   3E 52                  LD   a,REG_   ; Return with REG token
+0279   C9                     RET      
+027A                NEXTTOKEN7X:      
+027A   11 2C 05               LD   de,flags   ; list of registers to search
+027D   CD 85 03               CALL   searchStr   
+0280   30 F8                  JR   nc,nextToken7x   
+0282   3E 46                  LD   a,FLAG_   ; Return with FLAG token
+0284   C9                     RET      
+0285                NEXTTOKEN7A:      
+0285   11 2C 05               LD   de,flags   ; list of registers to search
+0288   CD 85 03               CALL   searchStr   
+028B   30 03                  JR   nc,nextToken7b   
+028D   3E 44                  LD   a,DIRECT_   ; Return with DIRECT token
+028F   C9                     RET      
+0290                NEXTTOKEN7B:      
+0290   3E 49                  LD   a,IDENT_   ; Return with IDENT token
+0292   C9                     RET      
+0293                NEXTTOKEN7:      
+0293   21 00 00               LD   hl,0   
+0296   FE 24                  CP   "$"   ; Is it a hexadecimal number?
+0298   20 13                  JR   nz,nextToken8   ; If not, continue to the next check
+029A   CD AF 03               CALL   nextChar   ; Get the next character
+029D   CD EA 02               CALL   isSpace   ; Check if it's the assembly pointer
+02A0   CD BD 03               CALL   pushBackChar   ; Push back the character (flags unaffected)
+02A3   20 03                  JR   nz,nextToken8a   
+02A5   3E 24                  LD   a,ASMLOC_   
+02A7   C9                     RET      
+02A8                NEXTTOKEN8A:      
+02A8   CD 3C 03               CALL   hex   
+02AB   18 0C                  JR   nextToken9a   
+02AD                NEXTTOKEN8:      
+02AD   FE 2D                  CP   "-"   ; Is it a negative number?
+02AF   28 05                  JR   z,nextToken9   ; If yes, continue to the next check
+02B1   CD 09 03               CALL   isDigit   ; Check if it's a digit
+02B4   30 09                  JR   nc,nextToken10   ; Jump to the next check
+02B6                NEXTTOKEN9:      
+02B6   CD 10 03               CALL   number   ; Parse the number
+02B9                NEXTTOKEN9A:      
+02B9   CD BD 03               CALL   pushBackChar   ; Push back the character
+02BC   3E 39                  LD   a,NUM_   ; Return with NUM token
+02BE   C9                     RET      
+02BF                NEXTTOKEN10:      
+02BF   6F                     LD   l,a   ; Load the token into L
+02C0   26 00                  LD   h,0   ; Clear H
+02C2   3E FF                  LD   a,UNKNOWN_   ; Return with UNKNOWN token
 02C4   C9                     RET      
-02C5                             ; isAlphaNum checks if the character in the a register is an alphanumeric character
-02C5                             ; (either uppercase or lowercase).
-02C5                             ; If the character is alphabetic, it converts it to uppercase and sets the carry flag.
-02C5                             ; If the character is not alphabetic, it clears the carry flag.
+02C5                             ; ident
+02C5                             ; 
+02C5                             ; Reads characters from the input stream and stores them in a string on the heap
+02C5                             ; until a non-alphanumeric character is encountered. The string is stored in
+02C5                             ; Pascal string format, with the length of the string stored in the first byte.
+02C5                             ; 
 02C5                             ; Input:
-02C5                             ; a: Contains the character to be checked.
+02C5                             ;   a: The first character of the identifier.
+02C5                             ;   (vStrPtr): Points to the top of the strings heap.
+02C5                             ; 
 02C5                             ; Output:
-02C5                             ; a: Contains the uppercase version of the input character if it was alphabetic.
-02C5                             ; cf: Set if the input character was alphabetic, cleared otherwise.
-02C5                             ; Destroyed: c
-02C5                ISALPHANUM:      
-02C5   CD DD 02               CALL   isDigit   
-02C8   C8                     RET   z   ; falls thru to isAlpha
-02C9                             ; isAlpha: checks if the character in the a register is an alphabetic character
-02C9                             ; (either uppercase or lowercase).
-02C9                             ; If the character is alphabetic, it converts it to uppercase and sets the carry flag.
-02C9                             ; Input:
-02C9                             ; a: Contains the character to be checked.
-02C9                             ; Output:
-02C9                             ; a: Contains the uppercase version of the input character if it was alphabetic.
-02C9                             ; cf: Set if the input character was alphabetic, cleared otherwise.
-02C9                             ; Destroyed: c
-02C9                ISALPHA:      
-02C9   0E 5B                  LD   c,"Z"+1   ; last uppercase letter
-02CB                ISALPHA0:      
-02CB   FE 61                  CP   "a"   ; is char lowercase?
-02CD   38 02                  JR   c,isAlpha1   
-02CF   D6 20                  SUB   $20   ; yes, convert a to uppercase
-02D1                ISALPHA1:      
-02D1   B9                     CP   c   ; is char > last letter?
-02D2   D0                     RET   nc   ; yes, exit with cf cleared
-02D3   FE 41                  CP   "A"   ; is char an uppercase letter ?
-02D5   3F                     CCF      ; invert cf
-02D6   C9                     RET      
-02D7                             ; isHexDigit: checks if the character in the a register is a hexadecimal
-02D7                             ; digit (0-9,A-F,a-f). If the character is a hex digit, it sets the carry flag.
-02D7                             ; Input:
-02D7                             ; a: Contains the character to be checked.
-02D7                             ; Output:
-02D7                             ; cf: Set if the input character was a digit, cleared otherwise.
-02D7                             ; Destroyed: none
-02D7                ISHEXDIGIT:      
-02D7   0E 47                  LD   c,"F"+1   
-02D9   CD CB 02               CALL   isAlpha0   
-02DC   C8                     RET   z   ; fall thru to isDigit
-02DD                             ; isDigit: checks if the character in the a register is a decimal
-02DD                             ; digit (0-9). If the character is a decimal digit, it sets the carry flag.
-02DD                             ; Input:
-02DD                             ; a: Contains the character to be checked.
-02DD                             ; Output:
-02DD                             ; cf: Set if the input character was a digit, cleared otherwise.
-02DD                             ; Destroyed: none
-02DD                ISDIGIT:      
-02DD   FE 3A                  CP   "9"+1   ; is char > "9"?
-02DF   D0                     RET   nc   ; yes, exit with cf cleared
-02E0   FE 30                  CP   "0"   ; is char a decimal digit ?
-02E2   3F                     CCF      ; invert cf
-02E3   C9                     RET      
-02E4                             ; number: parse a number from the input. It handles both decimal and hexadecimal
-02E4                             ; numbers, and also supports negative numbers.
-02E4                             ; Input: None
-02E4                             ; Output:
-02E4                             ; hl: Contains the parsed number.
-02E4                             ; Destroyed: None
-02E4                             ; vTemp1: A temporary memory location used to store the sign of the number.
-02E4                NUMBER:      
-02E4   FE 2D                  CP   "-"   ; Is it a negative number?
-02E6   3E FF                  LD   a,-1   ; a = sign flag
-02E8   28 01                  JR   z,num1   
-02EA   3C                     INC   a   
-02EB                NUM1:        
-02EB   32 16 08               LD   (vTemp1),a   ; Store the sign flag in vTemp1
-02EE   CD 7B 03               CALL   nextChar   ; Get the next character
-02F1   FE 24                  CP   "$"   ; Is it a hexadecimal number?
-02F3   20 05                  JR   nz,num2   
-02F5   CD 0D 03               CALL   hex   ; If yes, parse the hexadecimal number
-02F8   18 06                  JR   num3   
-02FA                NUM2:        
-02FA   CD 89 03               CALL   pushBackChar   ; Push back the character
-02FD   CD 38 03               CALL   decimal   ; Parse the decimal number
-0300                NUM3:        
-0300   3A 16 08               LD   a,(vTemp1)   ; Load the sign from vTemp1
-0303   3C                     INC   a   ; Increment a
-0304   C0                     RET   nz   
-0305   EB                     EX   de,hl   ; negate the value of HL
-0306   21 00 00               LD   hl,0   
-0309   B7                     OR   a   
-030A   ED 52                  SBC   hl,de   
-030C   C9                     RET      
-030D                             ; hex: parses a hexadecimal number
-030D                             ; Input: none
-030D                             ; Output:
-030D                             ; hl: parsed number
-030D                             ; Destroyed: a
-030D                HEX:         
-030D   21 00 00               LD   hl,0   ; Initialize HL to 0 to hold the result
-0310                HEX1:        
-0310   CD 7B 03               CALL   nextChar   
-0313   FE 30                  CP   "0"   ; Compare with ASCII "0"
-0315   D8                     RET   c   ; If less, exit
-0316   FE 3A                  CP   "9"+1   ; Compare with ASCII "9"
-0318   38 0F                  JR   c,valid   ; If less or equal, jump to valid
-031A   FE 61                  CP   "a"   ; is char lowercase letter?
-031C   38 02                  JR   c,hex2   
-031E   D6 20                  SUB   $20   ; yes, convert a to uppercase
-0320                HEX2:        
-0320   FE 41                  CP   "A"   ; Compare with ASCII "A"
-0322   D8                     RET   c   ; If less, exit invalid
-0323   FE 47                  CP   "F"+1   ; Compare with ASCII "F"
-0325   38 00                  JR   c,upper   ; If less or equal, jump to upper
-0327                UPPER:       
-0327   D6 37                  SUB   $37   ; Convert from ASCII to hex
-0329                VALID:       
-0329   D6 30                  SUB   "0"   ; Convert from ASCII to numeric value
-032B   D8                     RET   c   ; If the result is negative, the character was not a valid hexadecimal digit, so return
-032C   FE 10                  CP   $10   ; Compare the result with $10
-032E   D0                     RET   nc   ; If the result is $10 or more, the character was not a valid hexadecimal digit, so return
-032F   29                     ADD   hl,hl   ; Multiply the number in HL by 16 by shifting it left 4 times
-0330   29                     ADD   hl,hl   ; This is done because each hexadecimal digit represents 16^n where n is the position of the digit from the right
-0331   29                     ADD   hl,hl   
-0332   29                     ADD   hl,hl   
-0333   85                     ADD   a,l   ; Add the new digit to the number in HL
-0334   6F                     LD   l,a   ; Store the result back in L
-0335   C3 10 03               JP   hex1   ; Jump back to hex1 to process the next character
-0338                             ; decimal: parses a decimal number
-0338                             ; Input: none
-0338                             ; Output:
-0338                             ; hl: parsed number.
-0338                             ; Destroyed registers:
-0338                             ; A: Used for temporary storage and calculations.
-0338                             ; DE: Used for temporary storage and calculations.
-0338                DECIMAL:      
-0338   21 00 00               LD   hl,0   ; Initialize HL to 0 to hold the result
-033B                DECIMAL1:      
-033B   CD 7B 03               CALL   nextChar   
-033E   D6 30                  SUB   "0"   ; Subtract ASCII "0" to convert from ASCII to binary
-0340   D8                     RET   c   ; If the result is negative, the character was not a digit; return
-0341   FE 0A                  CP   10   ; Compare the result with 10
-0343   D0                     RET   nc   ; If the result is 10 or more, the character was not a digit; return
-0344   03                     INC   bc   ; Increment BC to point to the next digit
-0345   54 5D                  LD   de,hl   ; Copy HL to DE
-0347   29                     ADD   hl,hl   ; Multiply HL by 2
-0348   29                     ADD   hl,hl   ; Multiply HL by 4
-0349   19                     ADD   hl,de   ; Add DE to HL to multiply HL by 5
-034A   29                     ADD   hl,hl   ; Multiply HL by 10
-034B   85                     ADD   a,l   ; Add the digit in A to the low byte of HL
-034C   6F                     LD   l,a   ; Store the result in the low byte of HL
-034D   3E 00                  LD   a,0   ; Clear A
-034F   8C                     ADC   a,h   ; Add the carry from the previous addition to the high byte of HL
-0350   67                     LD   h,a   ; Store the result in the high byte of HL
-0351   18 E8                  JR   decimal1   ; Jump back to the start of the loop
-0353                             ; SearchStr: search through a list of Pascal strings for a match.
-0353                             ; Inputs:
-0353                             ; de: Points to the string to search for.
-0353                             ; hl: Points to the start of the list of strings.
-0353                             ; Outputs:
-0353                             ; a: index of the matching string if a match is found,
-0353                             ;    or -1 if no match is found.
-0353                             ; Destroyed: a,b,c,d,e,h,l
-0353   0E 00                  LD   c,0   ; Initialize the index counter
-0355                SEARCHSTR:      
-0355   1A                     LD   a,(de)   ; Load the length of the string to search for
-0356   47                     LD   b,a   ; Copy the length to B for looping
-0357   E5                     PUSH   hl   ; Store the address of the current string on the stack
-0358   BE                     CP   (hl)   ; Compare with the length of the current string in the list
-0359   20 0D                  JR   nz,searchStr2   ; If the lengths are not equal, move to the next string
-035B   13                     INC   de   ; Move to the start of the string data
-035C   23                     INC   hl   ; Move to the start of the string data
-035D                SEARCHSTR1:      
-035D   1A                     LD   a,(de)   ; Load the next character from the string to search for
-035E   BE                     CP   (hl)   ; Compare with the next character in the current string
-035F   20 07                  JR   nz,searchStr2   ; If the characters are not equal, move to the next string
-0361   13                     INC   de   ; Move to the next character in the string to search for
-0362   23                     INC   hl   ; Move to the next character in the current string
-0363   10 F8                  DJNZ   searchStr1   ; Loop until we've compared all characters
-0365   79                     LD   a,c   ; Load the index of the matching string into A
-0366   B7                     OR   a   ; 
-0367   C9                     RET      
-0368                SEARCHSTR2:      
-0368   E1                     POP   hl   ; Restore the address of the current string from the stack
-0369   7E                     LD   a,(hl)   ; Load the length of the current string
-036A   3C                     INC   a   ; a = length byte plus length of string
-036B   85                     ADD   a,l   ; hl += a
-036C   6F                     LD   l,a   
-036D   3E 00                  LD   a,0   
-036F   8C                     ADC   a,h   
-0370   67                     LD   h,a   
-0371   E5                     PUSH   hl   ; Store the address of the current string on the stack
-0372   0C                     INC   c   ; Increment the index counter
-0373   7E                     LD   a,(hl)   ; a = length of next string
-0374   B7                     OR   a   ; If a is not zero, continue searching
-0375   20 DE                  JR   nz,searchStr   
-0377   3E FF                  LD   a,NO_MATCH   ; No match found
-0379   B7                     OR   a   
-037A   C9                     RET      
-037B                             ; nextChar: checks if there is a character that has been pushed back for re-reading.
-037B                             ; If there is, it retrieves that character, otherwise it fetches a new character
-037B                             ; from the input.
-037B                             ; Input: none
-037B                             ; Output:
-037B                             ; a: Contains the next character to be processed, either retrieved from the
-037B                             ; pushback buffer or fetched from the input.
-037B                             ; Destroyed: None.
-037B                NEXTCHAR:      
-037B   CB 77                  BIT   7,(vPushBack)   ; Check the high bit of the pushback buffer
-037D   CA 81 00               JP   z,getchar   ; If the high bit is 0, jump to getchar
-0380   3A 1A 08               LD   a,(vPushBack)   ; If the high bit is 1, load the pushed back character into A
-0383   E6 7F                  AND   0x7F   ; Clear the high bit
-0385   32 1A 08               LD   (vPushBack),a   ; Store the character back in the buffer
-0388   C9                     RET      ; Return with the pushed back character in A
-0389                             ; pushBackChar: push back a character for re-reading. It sets the high bit of the
-0389                             ; character as a flag to indicate that this character has been pushed back, and
-0389                             ; stores the character in the pushback buffer.
-0389                             ; Input:
-0389                             ; a: Contains the character to be pushed back.
-0389                             ; Output: None.
-0389                             ; Destroyed: None.
-0389                PUSHBACKCHAR:      
-0389   F6 80                  OR   0x80   ; Set the high bit of the character to be pushed back
-038B   32 1A 08               LD   (vPushBack),a   ; Store the character in the pushback buffer
-038E   C9                     RET      
-038F                PROMPT:      
-038F   CD A4 03               CALL   printStr   
-0392   0D 0A 3E 20 00         .CSTR   "\r\n> "   
-0397   C9                     RET      
-0398                CRLF:        
-0398   CD A4 03               CALL   printStr   
-039B   0D 0A 00               .CSTR   "\r\n"   
-039E   C9                     RET      
-039F                ERROR:       
-039F   E1                     POP   hl   
-03A0   CD AE 03               CALL   putStr   
-03A3   76                     HALT      
-03A4                PRINTSTR:      
-03A4   E1                     POP   hl   ; "return" address is address of string			
-03A5   CD AE 03               CALL   putStr   
-03A8   23                     INC   hl   ; inc past null
-03A9   E9                     JP   (hl)   ; put it back	
-03AA                PUTSTR0:      
-03AA   CD 85 00               CALL   putchar   
-03AD   23                     INC   hl   
-03AE                PUTSTR:      
-03AE   7E                     LD   a,(hl)   
-03AF   B7                     OR   A   
-03B0   20 F8                  JR   nz,putStr0   
-03B2   C9                     RET      
-03B3                             ; *******************************************************************************
-03B3                             ; *********  END OF MAIN   ******************************************************
-03B3                             ; *******************************************************************************
-03B3                OPCODES:      
-03B3   03 41 44 43            .PSTR   "ADC"   
-03B7   03 41 44 44            .PSTR   "ADD"   
-03BB   03 41 4E 44            .PSTR   "AND"   
-03BF   03 42 49 54            .PSTR   "BIT"   
-03C3   04 43 41 4C 4C         .PSTR   "CALL"   
-03C8   03 43 43 46            .PSTR   "CCF"   
-03CC   02 43 50               .PSTR   "CP"   
-03CF   03 43 50 44            .PSTR   "CPD"   
-03D3   04 43 50 44 52         .PSTR   "CPDR"   
-03D8   03 43 50 49            .PSTR   "CPI"   
-03DC   04 43 50 49 52         .PSTR   "CPIR"   
-03E1   03 43 50 4C            .PSTR   "CPL"   
-03E5   03 44 41 41            .PSTR   "DAA"   
-03E9   03 44 45 43            .PSTR   "DEC"   
-03ED   02 44 49               .PSTR   "DI"   
-03F0   04 44 4A 4E 5A         .PSTR   "DJNZ"   
-03F5   02 45 49               .PSTR   "EI"   
-03F8   02 45 58               .PSTR   "EX"   
-03FB   03 45 58 58            .PSTR   "EXX"   
-03FF   04 48 41 4C 54         .PSTR   "HALT"   
-0404   02 49 4D               .PSTR   "IM"   
-0407   02 49 4E               .PSTR   "IN"   
-040A   03 49 4E 43            .PSTR   "INC"   
-040E   03 49 4E 44            .PSTR   "IND"   
-0412   04 49 4E 44 52         .PSTR   "INDR"   
-0417   03 49 4E 49            .PSTR   "INI"   
-041B   04 49 4E 49 52         .PSTR   "INIR"   
-0420   02 4A 50               .PSTR   "JP"   
-0423   02 4A 52               .PSTR   "JR"   
-0426   02 4C 44               .PSTR   "LD"   
-0429   03 4C 44 44            .PSTR   "LDD"   
-042D   04 4C 44 44 52         .PSTR   "LDDR"   
-0432   03 4C 44 49            .PSTR   "LDI"   
-0436   04 4C 44 49 52         .PSTR   "LDIR"   
-043B   03 4E 45 47            .PSTR   "NEG"   
-043F   03 4E 4F 50            .PSTR   "NOP"   
-0443   02 4F 52               .PSTR   "OR"   
-0446   04 4F 54 44 52         .PSTR   "OTDR"   
-044B   04 4F 54 49 52         .PSTR   "OTIR"   
-0450   03 4F 55 54            .PSTR   "OUT"   
-0454   04 4F 55 54 44         .PSTR   "OUTD"   
-0459   04 4F 55 54 49         .PSTR   "OUTI"   
-045E   03 50 4F 50            .PSTR   "POP"   
-0462   04 50 55 53 48         .PSTR   "PUSH"   
-0467   03 52 45 53            .PSTR   "RES"   
-046B   03 52 45 54            .PSTR   "RET"   
-046F   04 52 45 54 49         .PSTR   "RETI"   
-0474   04 52 45 54 4E         .PSTR   "RETN"   
-0479   02 52 4C               .PSTR   "RL"   
-047C   03 52 4C 41            .PSTR   "RLA"   
-0480   03 52 4C 43            .PSTR   "RLC"   
-0484   04 52 4C 43 41         .PSTR   "RLCA"   
-0489   03 52 4C 44            .PSTR   "RLD"   
-048D   02 52 52               .PSTR   "RR"   
-0490   03 52 52 41            .PSTR   "RRA"   
-0494   03 52 52 43            .PSTR   "RRC"   
-0498   04 52 52 43 41         .PSTR   "RRCA"   
-049D   03 52 52 44            .PSTR   "RRD"   
-04A1   03 52 53 54            .PSTR   "RST"   
-04A5   03 53 42 43            .PSTR   "SBC"   
-04A9   03 53 43 46            .PSTR   "SCF"   
-04AD   03 53 45 54            .PSTR   "SET"   
-04B1   03 53 4C 41            .PSTR   "SLA"   
-04B5   03 53 52 41            .PSTR   "SRA"   
-04B9   03 53 52 4C            .PSTR   "SRL"   
-04BD   03 53 55 42            .PSTR   "SUB"   
-04C1   03 58 4F 52            .PSTR   "XOR"   
-04C5   00                     .PSTR   ""   ; terminate list with a string of zero length
-04C6                REG:         
-04C6   01 42                  .PSTR   "B"   
-04C8   01 43                  .PSTR   "C"   
-04CA   01 44                  .PSTR   "D"   
-04CC   01 45                  .PSTR   "E"   
-04CE   01 48                  .PSTR   "H"   
-04D0   01 4C                  .PSTR   "L"   
-04D2   04 28 48 4C 29         .PSTR   "(HL)"   
-04D7   01 41                  .PSTR   "A"   
-04D9   0B 28 49 58 20 2B 20 65 78 70 72 29 .PSTR   "(IX + expr)"   
-04E5   0B 28 49 59 20 2B 20 65 78 70 72 29 .PSTR   "(IY + expr)"   
-04F1   04 28 42 43 29         .PSTR   "(BC)"   
-04F6   04 28 44 45 29         .PSTR   "(DE)"   
-04FB   01 49                  .PSTR   "I"   
-04FD   01 52                  .PSTR   "R"   
-04FF   00                     .PSTR   ""   ; terminate list with a string of zero length
-0500                REG_PAIRS:      
-0500   02 42 43               .PSTR   "BC"   
-0503   02 44 45               .PSTR   "DE"   
-0506   02 48 4C               .PSTR   "HL"   
-0509   02 53 50               .PSTR   "SP"   
-050C   02 41 46               .PSTR   "AF"   
-050F   03 41 46 27            .PSTR   "AF'"   
-0513   00                     .PSTR   ""   ; terminate list with a string of zero length
-0514                FLAGS:       
-0514   02 4E 5A               .PSTR   "NZ"   
-0517   01 5A                  .PSTR   "Z"   
-0519   02 4E 43               .PSTR   "NC"   
-051C   01 43                  .PSTR   "C"   
-051E   02 50 4F               .PSTR   "PO"   
-0521   02 50 45               .PSTR   "PE"   
-0524   01 50                  .PSTR   "P"   
-0526   01 4D                  .PSTR   "M"   
-0528   00                     .PSTR   ""   ; terminate list with a string of zero length
-0529                             ; *******************************************************************************
-0529                             ; *********  END OF DATA   ******************************************************
-0529                             ; *******************************************************************************
+02C5                             ;   hl: Points to the start of the stored string in memory.
+02C5                             ;   a: Contains the length of the string.
+02C5                             ;   (vStrPtr): Updated to point to the top of the strings heap after the stored string.
+02C5                             ; 
+02C5                             ; Destroyed:
+02C5                             ;   c, de
+02C5                IDENT:       
+02C5   2A 22 08               LD   hl,(vStrPtr)   ; de = hl = top of strings heap
+02C8   54 5D                  LD   de,hl   
+02CA   23                     INC   hl   ; skip length byte
+02CB                IDENT1:      
+02CB   77                     LD   (hl),a   ; write char
+02CC   23                     INC   hl   
+02CD   CD AF 03               CALL   nextChar   
+02D0   FE 5F                  CP   "_"   
+02D2   28 05                  JR   z,ident2   
+02D4   CD F0 02               CALL   isAlphanum   
+02D7   30 04                  JR   nc,ident3   
+02D9                IDENT2:      
+02D9   77                     LD   (hl),a   
+02DA   23                     INC   hl   
+02DB   18 EE                  JR   ident1   
+02DD                IDENT3:      
+02DD   CD BD 03               CALL   pushBackChar   
+02E0   22 22 08               LD   (vStrPtr),hl   ; update top of strings heap
+02E3   B7                     OR   a   
+02E4   ED 52                  SBC   hl,de   ; hl = length, de = string
+02E6   EB                     EX   de,hl   ; e = len, hl = string
+02E7   73                     LD   (hl),e   ; save lsb(length)
+02E8   7B                     LD   a,e   ; a = length
+02E9   C9                     RET      
+02EA                             ; isSpace
+02EA                             ; checks if the character in the a register is space or tab
+02EA                             ; Input:
+02EA                             ;   a: Contains the character to be checked.
+02EA                             ; Output:
+02EA                             ;   a: Contains the character to be checked.
+02EA                             ;   cf: Set if the input character was alphabetic, cleared otherwise.
+02EA                             ; Destroyed:
+02EA                             ;   none
+02EA                ISSPACE:      
+02EA   FE 20                  CP   " "   ; is char lowercase?
+02EC   C8                     RET   z   
+02ED   FE 09                  CP   "\t"   ; is char > last letter?
+02EF   C9                     RET      
+02F0                             ; isAlphaNum
+02F0                             ; checks if the character in the a register is an alphanumeric character
+02F0                             ; (either uppercase or lowercase).
+02F0                             ; If the character is alphabetic, it converts it to uppercase and sets the carry flag.
+02F0                             ; If the character is not alphabetic, it clears the carry flag.
+02F0                             ; Input:
+02F0                             ; a: Contains the character to be checked.
+02F0                             ; Output:
+02F0                             ; a: Contains the uppercase version of the input character if it was alphabetic.
+02F0                             ; cf: Set if the input character was alphabetic, cleared otherwise.
+02F0                             ; Destroyed: c
+02F0                ISALPHANUM:      
+02F0   CD 09 03               CALL   isDigit   
+02F3   C8                     RET   z   ; falls thru to isAlpha
+02F4                             ; isAlpha
+02F4                             ; checks if the character in the a register is an alphabetic character
+02F4                             ; (either uppercase or lowercase).
+02F4                             ; If the character is alphabetic, it converts it to uppercase and sets the carry flag.
+02F4                             ; Input:
+02F4                             ;   a: Contains the character to be checked.
+02F4                             ; Output:
+02F4                             ;   a: Contains the uppercase version of the input character if it was alphabetic.
+02F4                             ;   cf: Set if the input character was alphabetic, cleared otherwise.
+02F4                             ; Destroyed:
+02F4                             ;   none
+02F4                ISALPHA:      
+02F4   FE 61                  CP   "a"   ; is char lowercase?
+02F6   38 02                  JR   c,isAlpha1   
+02F8   D6 20                  SUB   $20   ; yes, convert a to uppercase
+02FA                ISALPHA1:      
+02FA   FE 5B                  CP   "Z"+1   ; is char > last letter?
+02FC   D0                     RET   nc   ; yes, exit with cf cleared
+02FD   FE 41                  CP   "A"   ; is char an uppercase letter ?
+02FF   3F                     CCF      ; invert cf
+0300   C9                     RET      
+0301                             ; isHexDigit
+0301                             ; checks if the character in the a register is a hexadecimal
+0301                             ; digit (0-9, A-F, a-f). If the character is a hex digit, it sets the carry flag.
+0301                             ; Input:
+0301                             ;   a: Contains the character to be checked.
+0301                             ; Output:
+0301                             ;   cf: Set if the input character was a hex digit, cleared otherwise.
+0301                             ; Destroyed:
+0301                             ;   none
+0301                ISHEXDIGIT:      
+0301   CD F4 02               CALL   isAlpha   
+0304   30 03                  JR   nc,isDigit   
+0306   FE 47                  CP   "F"+1   
+0308   D0                     RET   nc   ; > "F", not hex, cf = false
+0309                ISHEXDIGIT1:      
+0309                             ; isDigit
+0309                             ; checks if the character in the a register is a decimal
+0309                             ; digit (0-9). If the character is a decimal digit, it sets the carry flag.
+0309                             ; Input:
+0309                             ;   a: Contains the character to be checked.
+0309                             ; Output:
+0309                             ;   cf: Set if the input character was a digit, cleared otherwise.
+0309                             ; Destroyed:
+0309                             ;   none
+0309                ISDIGIT:      
+0309   FE 3A                  CP   "9"+1   ; is char > "9"?
+030B   D0                     RET   nc   ; yes, exit with cf cleared
+030C   FE 30                  CP   "0"   ; is char a decimal digit ?
+030E   3F                     CCF      ; invert cf
+030F   C9                     RET      
+0310                             ; number
+0310                             ; parse a number from the input. It handles both decimal and hexadecimal
+0310                             ; numbers, and also supports negative numbers.
+0310                             ; Input:
+0310                             ;   none
+0310                             ; Output:
+0310                             ;   hl: Contains the parsed number.
+0310                             ; Destroyed:
+0310                             ;   none
+0310                             ; vTemp1: A temporary memory location used to store the sign of the number.
+0310                NUMBER:      
+0310   FE 2D                  CP   "-"   ; Is it a negative number?
+0312   3E FF                  LD   a,-1   ; a = sign flag
+0314   28 01                  JR   z,number1   
+0316   3C                     INC   a   
+0317                NUMBER1:      
+0317   32 16 08               LD   (vTemp1),a   ; Store the sign flag in vTemp1
+031A   CD AF 03               CALL   nextChar   ; Get the next character
+031D   FE 24                  CP   "$"   ; Is it a hexadecimal number?
+031F   20 05                  JR   nz,number2   
+0321   CD 3C 03               CALL   hex   ; If yes, parse the hexadecimal number
+0324   18 06                  JR   number3   
+0326                NUMBER2:      
+0326   CD BD 03               CALL   pushBackChar   ; Push back the character
+0329   CD 67 03               CALL   decimal   ; Parse the decimal number
+032C                NUMBER3:      
+032C   3A 16 08               LD   a,(vTemp1)   ; Load the sign from vTemp1
+032F   3C                     INC   a   ; Increment a
+0330   C0                     RET   nz   
+0331   EB                     EX   de,hl   ; negate the value of HL
+0332   21 00 00               LD   hl,0   
+0335   B7                     OR   a   
+0336   ED 52                  SBC   hl,de   
+0338   CD BD 03               CALL   pushBackChar   ; Push back the character
+033B   C9                     RET      
+033C                             ; hex
+033C                             ; parses a hexadecimal number
+033C                             ; Input: none
+033C                             ; Output:
+033C                             ; hl: parsed number
+033C                             ; Destroyed: a
+033C                HEX:         
+033C   21 00 00               LD   hl,0   ; Initialize HL to 0 to hold the result
+033F                HEX1:        
+033F   CD AF 03               CALL   nextChar   
+0342   FE 30                  CP   "0"   ; Compare with ASCII "0"
+0344   D8                     RET   c   ; If less, exit
+0345   FE 3A                  CP   "9"+1   ; Compare with ASCII "9"
+0347   38 0F                  JR   c,valid   ; If less or equal, jump to valid
+0349   FE 61                  CP   "a"   ; is char lowercase letter?
+034B   38 02                  JR   c,hex2   
+034D   D6 20                  SUB   $20   ; yes, convert a to uppercase
+034F                HEX2:        
+034F   FE 41                  CP   "A"   ; Compare with ASCII "A"
+0351   D8                     RET   c   ; If less, exit invalid
+0352   FE 47                  CP   "F"+1   ; Compare with ASCII "F"
+0354   38 00                  JR   c,upper   ; If less or equal, jump to upper
+0356                UPPER:       
+0356   D6 37                  SUB   $37   ; Convert from ASCII to hex
+0358                VALID:       
+0358   D6 30                  SUB   "0"   ; Convert from ASCII to numeric value
+035A   D8                     RET   c   ; If the result is negative, the character was not a valid hexadecimal digit, so return
+035B   FE 10                  CP   $10   ; Compare the result with $10
+035D   D0                     RET   nc   ; If the result is $10 or more, the character was not a valid hexadecimal digit, so return
+035E   29                     ADD   hl,hl   ; Multiply the number in HL by 16 by shifting it left 4 times
+035F   29                     ADD   hl,hl   ; This is done because each hexadecimal digit represents 16^n where n is the position of the digit from the right
+0360   29                     ADD   hl,hl   
+0361   29                     ADD   hl,hl   
+0362   85                     ADD   a,l   ; Add the new digit to the number in HL
+0363   6F                     LD   l,a   ; Store the result back in L
+0364   C3 3F 03               JP   hex1   ; Jump back to hex1 to process the next character
+0367                             ; decimal
+0367                             ; parses a decimal number
+0367                             ; Input: none
+0367                             ; Output:
+0367                             ; hl: parsed number.
+0367                             ; Destroyed registers:
+0367                             ; A: Used for temporary storage and calculations.
+0367                             ; DE: Used for temporary storage and calculations.
+0367                DECIMAL:      
+0367   21 00 00               LD   hl,0   ; Initialize HL to 0 to hold the result
+036A                DECIMAL1:      
+036A   CD AF 03               CALL   nextChar   
+036D   D6 30                  SUB   "0"   ; Subtract ASCII "0" to convert from ASCII to binary
+036F   D8                     RET   c   ; If the result is negative, the character was not a digit; return
+0370   FE 0A                  CP   10   ; Compare the result with 10
+0372   D0                     RET   nc   ; If the result is 10 or more, the character was not a digit; return
+0373   03                     INC   bc   ; Increment BC to point to the next digit
+0374   54 5D                  LD   de,hl   ; Copy HL to DE
+0376   29                     ADD   hl,hl   ; Multiply HL by 2
+0377   29                     ADD   hl,hl   ; Multiply HL by 4
+0378   19                     ADD   hl,de   ; Add DE to HL to multiply HL by 5
+0379   29                     ADD   hl,hl   ; Multiply HL by 10
+037A   85                     ADD   a,l   ; Add the digit in A to the low byte of HL
+037B   6F                     LD   l,a   ; Store the result in the low byte of HL
+037C   3E 00                  LD   a,0   ; Clear A
+037E   8C                     ADC   a,h   ; Add the carry from the previous addition to the high byte of HL
+037F   67                     LD   h,a   ; Store the result in the high byte of HL
+0380   18 E8                  JR   decimal1   ; Jump back to the start of the loop
+0382                             ; searchStr
+0382                             ; search through a list of Pascal strings for a match.
+0382                             ; Inputs:
+0382                             ;   hl: Points to the string to search for.
+0382                             ;   de: Points to the start of the list of strings.
+0382                             ; Outputs:
+0382                             ;   cf: true if match
+0382                             ;   a: index of the matching string if a match is found,
+0382                             ;      or -1 if no match is found.
+0382                             ;   hl: Points to the string to search for.
+0382                             ; Destroyed:
+0382                             ;   a, b, c, d, e, a", f"
+0382   EB                     EX   de,hl   ; de = search string hl = string list
+0383   AF                     XOR   a   ; Initialize the index counter, zf = true, cf = false
+0384   08                     EX   af,af'   
+0385                SEARCHSTR:      
+0385   1A                     LD   a,(de)   ; Load the length of search string
+0386   47                     LD   b,a   ; Copy the length to b for looping
+0387   D5                     PUSH   de   ; Store search string
+0388   E5                     PUSH   hl   ; Store current string
+0389   BE                     CP   (hl)   ; Compare with the length of the current string
+038A   20 0F                  JR   nz,searchStr2   ; If the lengths are not equal, move to the next string
+038C   13                     INC   de   ; Move to the start of the search string
+038D   23                     INC   hl   ; Move to the start of the current string
+038E                SEARCHSTR1:      
+038E   1A                     LD   a,(de)   ; Load the next character from search string
+038F   BE                     CP   (hl)   ; Compare with the next character in the current string
+0390   20 09                  JR   nz,searchStr2   ; If the characters are not equal, move to the next string
+0392   13                     INC   de   ; Move to the next character in the search string
+0393   23                     INC   hl   ; Move to the next character in the current string
+0394   10 F8                  DJNZ   searchStr1   ; Loop until we've compared all characters
+0396   E1                     POP   hl   ; discard current string
+0397   E1                     POP   hl   ; hl = search string
+0398   08                     EX   af,af'   ; Load the index of the match
+0399   3F                     CCF      ; if match, cf = true
+039A   C9                     RET      
+039B                SEARCHSTR2:      
+039B   E1                     POP   hl   ; Restore current string
+039C   D1                     POP   de   ; Restore search string
+039D   7E                     LD   a,(hl)   ; Load the length of the current string
+039E   3C                     INC   a   ; a = length byte plus length of string
+039F   4F                     LD   c,a   ; bc = a
+03A0   06 00                  LD   b,0   
+03A2   09                     ADD   hl,bc   ; hl += bc, the next string
+03A3   D5                     PUSH   de   ; Store search string
+03A4   E5                     PUSH   hl   ; Store current string
+03A5   08                     EX   af,af'   ; Increment the index counter, zf = false, cf = false
+03A6   3C                     INC   a   
+03A7   08                     EX   af,af'   
+03A8   7E                     LD   a,(hl)   ; a = length of next string
+03A9   B7                     OR   a   ; If a != 0, continue searching
+03AA   20 D9                  JR   nz,searchStr   
+03AC   3D                     DEC   a   ; a = NO_MATCH (i.e. -1), zf = false
+03AD   3F                     CCF      ; cf = false
+03AE   C9                     RET      
+03AF                             ; nextChar
+03AF                             ; checks if there is a character that has been pushed back for re-reading.
+03AF                             ; If there is, it retrieves that character, otherwise it fetches a new character
+03AF                             ; from the input.
+03AF                             ; Input: none
+03AF                             ; Output:
+03AF                             ; a: Contains the next character to be processed, either retrieved from the
+03AF                             ; pushback buffer or fetched from the input.
+03AF                             ; Destroyed: None.
+03AF                NEXTCHAR:      
+03AF   CB 77                  BIT   7,(vPushBack)   ; Check the high bit of the pushback buffer
+03B1   CA 81 00               JP   z,getchar   ; If the high bit is 0, jump to getchar
+03B4   3A 1A 08               LD   a,(vPushBack)   ; If the high bit is 1, load the pushed back character into A
+03B7   E6 7F                  AND   0x7F   ; Clear the high bit
+03B9   32 1A 08               LD   (vPushBack),a   ; Store the character back in the buffer
+03BC   C9                     RET      ; Return with the pushed back character in A
+03BD                             ; pushBackChar
+03BD                             ; push back a character for re-reading. It sets the high bit of the
+03BD                             ; character as a flag to indicate that this character has been pushed back, and
+03BD                             ; stores the character in the pushback buffer.
+03BD                             ; Input:
+03BD                             ; a: Contains the character to be pushed back.
+03BD                             ; Output: None.
+03BD                             ; Destroyed: none, no flags
+03BD                PUSHBACKCHAR:      
+03BD   CB FF                  SET   7,a   ; Set the high bit of the character with affecting flags
+03BF   32 1A 08               LD   (vPushBack),a   ; Store the character in the pushback buffer
+03C2   C9                     RET      
+03C3                PROMPT:      
+03C3   CD D8 03               CALL   print   
+03C6   04 0D 0A 3E 20         .PSTR   "\r\n> "   
+03CB   C9                     RET      
+03CC                CRLF:        
+03CC   CD D8 03               CALL   print   
+03CF   02 0D 0A               .PSTR   "\r\n"   
+03D2   C9                     RET      
+03D3                ERROR:       
+03D3   E1                     POP   hl   
+03D4   CD DD 03               CALL   printStr   
+03D7   76                     HALT      
+03D8                PRINT:       
+03D8   E1                     POP   hl   ; "return" address is address of string			
+03D9   CD DD 03               CALL   printStr   
+03DC   E9                     JP   (hl)   ; put it back	
+03DD                             ; print
+03DD                             ; 
+03DD                             ; Prints a Pascal string to the console.
+03DD                             ; 
+03DD                             ; Input:
+03DD                             ;   hl: Points to the start of the Pascal string in memory. The first byte at this location should be the length of the string, followed by the string data.
+03DD                             ; 
+03DD                             ; Output:
+03DD                             ;   hl: points to the byte after the end of the string .
+03DD                             ; 
+03DD                             ; Destroyed:
+03DD                             ;   a, b
+03DD                PRINTSTR:      
+03DD   7E                     LD   a,(hl)   ; Load the length of the string
+03DE   B7                     OR   a   ; Check if A is zero
+03DF   C8                     RET   z   ; If it is, return immediately
+03E0   23                     INC   hl   ; Move to the start of the string data
+03E1   47                     LD   b,a   ; Copy the length to B for looping
+03E2                PRINTSTR1:      
+03E2   7E                     LD   a,(hl)   ; Load the next character
+03E3   CD 85 00               CALL   putchar   ; Call a routine that prints a single character
+03E6   23                     INC   hl   ; Move to the next character
+03E7   10 F9                  DJNZ   printStr1   ; Decrement B and jump if not zero
+03E9   C9                     RET      ; Return from the routine
+03EA                             ; *******************************************************************************
+03EA                             ; *********  END OF MAIN   ******************************************************
+03EA                             ; *******************************************************************************
+03EA                OPCODES:      
+03EA   03 41 44 43            .PSTR   "ADC"   
+03EE   03 41 44 44            .PSTR   "ADD"   
+03F2   03 41 4E 44            .PSTR   "AND"   
+03F6   03 42 49 54            .PSTR   "BIT"   
+03FA   04 43 41 4C 4C         .PSTR   "CALL"   
+03FF   03 43 43 46            .PSTR   "CCF"   
+0403   02 43 50               .PSTR   "CP"   
+0406   03 43 50 44            .PSTR   "CPD"   
+040A   04 43 50 44 52         .PSTR   "CPDR"   
+040F   03 43 50 49            .PSTR   "CPI"   
+0413   04 43 50 49 52         .PSTR   "CPIR"   
+0418   03 43 50 4C            .PSTR   "CPL"   
+041C   03 44 41 41            .PSTR   "DAA"   
+0420   03 44 45 43            .PSTR   "DEC"   
+0424   02 44 49               .PSTR   "DI"   
+0427   04 44 4A 4E 5A         .PSTR   "DJNZ"   
+042C   02 45 49               .PSTR   "EI"   
+042F   02 45 58               .PSTR   "EX"   
+0432   03 45 58 58            .PSTR   "EXX"   
+0436   04 48 41 4C 54         .PSTR   "HALT"   
+043B   02 49 4D               .PSTR   "IM"   
+043E   02 49 4E               .PSTR   "IN"   
+0441   03 49 4E 43            .PSTR   "INC"   
+0445   03 49 4E 44            .PSTR   "IND"   
+0449   04 49 4E 44 52         .PSTR   "INDR"   
+044E   03 49 4E 49            .PSTR   "INI"   
+0452   04 49 4E 49 52         .PSTR   "INIR"   
+0457   02 4A 50               .PSTR   "JP"   
+045A   02 4A 52               .PSTR   "JR"   
+045D   02 4C 44               .PSTR   "LD"   
+0460   03 4C 44 44            .PSTR   "LDD"   
+0464   04 4C 44 44 52         .PSTR   "LDDR"   
+0469   03 4C 44 49            .PSTR   "LDI"   
+046D   04 4C 44 49 52         .PSTR   "LDIR"   
+0472   03 4E 45 47            .PSTR   "NEG"   
+0476   03 4E 4F 50            .PSTR   "NOP"   
+047A   02 4F 52               .PSTR   "OR"   
+047D   04 4F 54 44 52         .PSTR   "OTDR"   
+0482   04 4F 54 49 52         .PSTR   "OTIR"   
+0487   03 4F 55 54            .PSTR   "OUT"   
+048B   04 4F 55 54 44         .PSTR   "OUTD"   
+0490   04 4F 55 54 49         .PSTR   "OUTI"   
+0495   03 50 4F 50            .PSTR   "POP"   
+0499   04 50 55 53 48         .PSTR   "PUSH"   
+049E   03 52 45 53            .PSTR   "RES"   
+04A2   03 52 45 54            .PSTR   "RET"   
+04A6   04 52 45 54 49         .PSTR   "RETI"   
+04AB   04 52 45 54 4E         .PSTR   "RETN"   
+04B0   02 52 4C               .PSTR   "RL"   
+04B3   03 52 4C 41            .PSTR   "RLA"   
+04B7   03 52 4C 43            .PSTR   "RLC"   
+04BB   04 52 4C 43 41         .PSTR   "RLCA"   
+04C0   03 52 4C 44            .PSTR   "RLD"   
+04C4   02 52 52               .PSTR   "RR"   
+04C7   03 52 52 41            .PSTR   "RRA"   
+04CB   03 52 52 43            .PSTR   "RRC"   
+04CF   04 52 52 43 41         .PSTR   "RRCA"   
+04D4   03 52 52 44            .PSTR   "RRD"   
+04D8   03 52 53 54            .PSTR   "RST"   
+04DC   03 53 42 43            .PSTR   "SBC"   
+04E0   03 53 43 46            .PSTR   "SCF"   
+04E4   03 53 45 54            .PSTR   "SET"   
+04E8   03 53 4C 41            .PSTR   "SLA"   
+04EC   03 53 52 41            .PSTR   "SRA"   
+04F0   03 53 52 4C            .PSTR   "SRL"   
+04F4   03 53 55 42            .PSTR   "SUB"   
+04F8   03 58 4F 52            .PSTR   "XOR"   
+04FC   00                     .PSTR   ""   ; terminate list with a string of zero length
+04FD                REGISTERS:      
+04FD   01 42                  .PSTR   "B"   
+04FF   01 43                  .PSTR   "C"   
+0501   01 44                  .PSTR   "D"   
+0503   01 45                  .PSTR   "E"   
+0505   01 48                  .PSTR   "H"   
+0507   01 4C                  .PSTR   "L"   
+0509   01 20                  .PSTR   " "   ; don't match, stand-in for (HL)
+050B   01 41                  .PSTR   "A"   
+050D   01 49                  .PSTR   "I"   
+050F   01 52                  .PSTR   "R"   
+0511   00                     .PSTR   ""   ; terminate list with a string of zero length
+0512                REG_PAIRS:      
+0512   02 42 43               .PSTR   "BC"   
+0515   02 44 45               .PSTR   "DE"   
+0518   02 48 4C               .PSTR   "HL"   
+051B   02 53 50               .PSTR   "SP"   
+051E   02 41 46               .PSTR   "AF"   ; NOTE: AF has the same code as SP in some instructions
+0521   02 49 58               .PSTR   "IX"   
+0524   02 49 59               .PSTR   "IY"   
+0527   03 41 46 27            .PSTR   "AF'"   
+052B   00                     .PSTR   ""   ; terminate list with a string of zero length
+052C                FLAGS:       
+052C   02 4E 5A               .PSTR   "NZ"   
+052F   01 5A                  .PSTR   "Z"   
+0531   02 4E 43               .PSTR   "NC"   
+0534   01 43                  .PSTR   "C"   
+0536   02 50 4F               .PSTR   "PO"   
+0539   02 50 45               .PSTR   "PE"   
+053C   01 50                  .PSTR   "P"   
+053E   01 4D                  .PSTR   "M"   
+0540   00                     .PSTR   ""   ; terminate list with a string of zero length
+0541                DIRECTIVES:      
+0541   06 2E 41 4C 49 47 4E   .PSTR   ".ALIGN"   
+0548   03 2E 44 42            .PSTR   ".DB"   
+054C   04 2E 4F 52 47         .PSTR   ".ORG"   
+0551   04 2E 53 45 54         .PSTR   ".SET"   
+0556   00                     .PSTR   ""   ; terminate list with a string of zero length
+0557                             ; *******************************************************************************
+0557                             ; *********  END OF DATA   ******************************************************
+0557                             ; *******************************************************************************
 0800                          .ORG   RAMSTART   
 0800                RST08:    DS   2   
 0802                RST10:    DS   2   
@@ -1206,134 +1312,146 @@ RAMSTART:           0800 DEFINED AT LINE 2 IN constants.asm
 ROMSIZE:            0800 DEFINED AT LINE 3 IN constants.asm
 RAMSIZE:            0800 DEFINED AT LINE 4 IN constants.asm
 NO_MATCH:           00-1 DEFINED AT LINE 6 IN constants.asm
-                    > USED AT LINE 188 IN MAIN.asm
-                    > USED AT LINE 431 IN MAIN.asm
 CTRL_H:             0008 DEFINED AT LINE 7 IN constants.asm
 TOKENS:             0000 DEFINED AT LINE 9 IN constants.asm
-UNKNOWN_:           00-1 DEFINED AT LINE 11 IN constants.asm
-                    > USED AT LINE 158 IN MAIN.asm
-EOF_:               0000 DEFINED AT LINE 12 IN constants.asm
-                    > USED AT LINE 52 IN MAIN.asm
-                    > USED AT LINE 95 IN MAIN.asm
-NEWLN_:             0001 DEFINED AT LINE 13 IN constants.asm
-                    > USED AT LINE 100 IN MAIN.asm
-COMMENT_:           0002 DEFINED AT LINE 14 IN constants.asm
-                    > USED AT LINE 109 IN MAIN.asm
-NUM_:               0003 DEFINED AT LINE 15 IN constants.asm
-                    > USED AT LINE 145 IN MAIN.asm
-                    > USED AT LINE 153 IN MAIN.asm
-LABEL_:             0004 DEFINED AT LINE 16 IN constants.asm
-                    > USED AT LINE 121 IN MAIN.asm
-IDENT_:             0005 DEFINED AT LINE 17 IN constants.asm
-END_:               0006 DEFINED AT LINE 18 IN constants.asm
+COMMA_:             000, DEFINED AT LINE 11 IN constants.asm
+COMMENT_:           000; DEFINED AT LINE 12 IN constants.asm
+                    > USED AT LINE 107 IN MAIN.asm
+DIRECT_:            000D DEFINED AT LINE 13 IN constants.asm
+                    > USED AT LINE 151 IN MAIN.asm
+ASMLOC_:            000$ DEFINED AT LINE 14 IN constants.asm
+                    > USED AT LINE 164 IN MAIN.asm
+END_:               000E DEFINED AT LINE 15 IN constants.asm
                     > USED AT LINE 55 IN MAIN.asm
-OPCODE_:            0007 DEFINED AT LINE 19 IN constants.asm
+EOF_:               0000 DEFINED AT LINE 16 IN constants.asm
+                    > USED AT LINE 52 IN MAIN.asm
+                    > USED AT LINE 93 IN MAIN.asm
+FLAG_:              000F DEFINED AT LINE 17 IN constants.asm
+                    > USED AT LINE 145 IN MAIN.asm
+IDENT_:             000I DEFINED AT LINE 18 IN constants.asm
+                    > USED AT LINE 154 IN MAIN.asm
+LABEL_:             000L DEFINED AT LINE 19 IN constants.asm
+                    > USED AT LINE 119 IN MAIN.asm
+NEWLN_:             000
+ DEFINED AT LINE 20 IN constants.asm
+                    > USED AT LINE 98 IN MAIN.asm
+NUM_:               0009 DEFINED AT LINE 21 IN constants.asm
+                    > USED AT LINE 178 IN MAIN.asm
+OPCODE_:            000C DEFINED AT LINE 22 IN constants.asm
                     > USED AT LINE 127 IN MAIN.asm
-DIRECT_:            0008 DEFINED AT LINE 20 IN constants.asm
+PARCLOSE_:          000) DEFINED AT LINE 23 IN constants.asm
+PAROPEN_:           000( DEFINED AT LINE 24 IN constants.asm
+REG_:               000R DEFINED AT LINE 25 IN constants.asm
+                    > USED AT LINE 139 IN MAIN.asm
+REGPAIR_:           000P DEFINED AT LINE 26 IN constants.asm
                     > USED AT LINE 133 IN MAIN.asm
-OPCODE_IDX:         0000 DEFINED AT LINE 22 IN constants.asm
-ADC_:               0000 DEFINED AT LINE 24 IN constants.asm
-ADD_:               0001 DEFINED AT LINE 25 IN constants.asm
-AND_:               0002 DEFINED AT LINE 26 IN constants.asm
-BIT_:               0003 DEFINED AT LINE 27 IN constants.asm
-CALL_:              0004 DEFINED AT LINE 28 IN constants.asm
-CCF_:               0005 DEFINED AT LINE 29 IN constants.asm
-CP_:                0006 DEFINED AT LINE 30 IN constants.asm
-CPD_:               0007 DEFINED AT LINE 31 IN constants.asm
-CPDR_:              0008 DEFINED AT LINE 32 IN constants.asm
-CPI_:               0009 DEFINED AT LINE 33 IN constants.asm
-CPIR_:              000A DEFINED AT LINE 34 IN constants.asm
-CPL_:               000B DEFINED AT LINE 35 IN constants.asm
-DAA_:               000C DEFINED AT LINE 36 IN constants.asm
-DEC_:               000D DEFINED AT LINE 37 IN constants.asm
-DI_:                000E DEFINED AT LINE 38 IN constants.asm
-DJNZ_:              000F DEFINED AT LINE 39 IN constants.asm
-EI_:                0010 DEFINED AT LINE 40 IN constants.asm
-EX_:                0011 DEFINED AT LINE 41 IN constants.asm
-EXX_:               0012 DEFINED AT LINE 42 IN constants.asm
-HALT_:              0013 DEFINED AT LINE 43 IN constants.asm
-IM_:                0014 DEFINED AT LINE 44 IN constants.asm
-IN_:                0015 DEFINED AT LINE 45 IN constants.asm
-INC_:               0016 DEFINED AT LINE 46 IN constants.asm
-IND_:               0017 DEFINED AT LINE 47 IN constants.asm
-INDR_:              0018 DEFINED AT LINE 48 IN constants.asm
-INI_:               0019 DEFINED AT LINE 49 IN constants.asm
-INIR_:              001A DEFINED AT LINE 50 IN constants.asm
-JP_:                001B DEFINED AT LINE 51 IN constants.asm
-JR_:                001C DEFINED AT LINE 52 IN constants.asm
-LD_:                001D DEFINED AT LINE 53 IN constants.asm
-LDD_:               001E DEFINED AT LINE 54 IN constants.asm
-LDDR_:              001F DEFINED AT LINE 55 IN constants.asm
-LDI_:               0020 DEFINED AT LINE 56 IN constants.asm
-LDIR_:              0021 DEFINED AT LINE 57 IN constants.asm
-NEG_:               0022 DEFINED AT LINE 58 IN constants.asm
-NOP_:               0023 DEFINED AT LINE 59 IN constants.asm
-OR_:                0024 DEFINED AT LINE 60 IN constants.asm
-OTDR_:              0025 DEFINED AT LINE 61 IN constants.asm
-OTIR_:              0026 DEFINED AT LINE 62 IN constants.asm
-OUT_:               0027 DEFINED AT LINE 63 IN constants.asm
-OUTD_:              0028 DEFINED AT LINE 64 IN constants.asm
-OUTI_:              0029 DEFINED AT LINE 65 IN constants.asm
-POP_:               002A DEFINED AT LINE 66 IN constants.asm
-PUSH_:              002B DEFINED AT LINE 67 IN constants.asm
-RES_:               002C DEFINED AT LINE 68 IN constants.asm
-RET_:               002D DEFINED AT LINE 69 IN constants.asm
-RETI_:              002E DEFINED AT LINE 70 IN constants.asm
-RETN_:              002F DEFINED AT LINE 71 IN constants.asm
-RL_:                0030 DEFINED AT LINE 72 IN constants.asm
-RLA_:               0031 DEFINED AT LINE 73 IN constants.asm
-RLC_:               0032 DEFINED AT LINE 74 IN constants.asm
-RLCA_:              0033 DEFINED AT LINE 75 IN constants.asm
-RLD_:               0034 DEFINED AT LINE 76 IN constants.asm
-RR_:                0035 DEFINED AT LINE 77 IN constants.asm
-RRA_:               0036 DEFINED AT LINE 78 IN constants.asm
-RRC_:               0037 DEFINED AT LINE 79 IN constants.asm
-RRCA_:              0038 DEFINED AT LINE 80 IN constants.asm
-RRD_:               0039 DEFINED AT LINE 81 IN constants.asm
-RST_:               003A DEFINED AT LINE 82 IN constants.asm
-SBC_:               003B DEFINED AT LINE 83 IN constants.asm
-SCF_:               003C DEFINED AT LINE 84 IN constants.asm
-SET_:               003D DEFINED AT LINE 85 IN constants.asm
-SLA_:               003E DEFINED AT LINE 86 IN constants.asm
-SRA_:               003F DEFINED AT LINE 87 IN constants.asm
-SRL_:               0040 DEFINED AT LINE 88 IN constants.asm
-SUB_:               0041 DEFINED AT LINE 89 IN constants.asm
-XOR_:               0042 DEFINED AT LINE 90 IN constants.asm
-REG_IDX:            0000 DEFINED AT LINE 92 IN constants.asm
-B_:                 0000 DEFINED AT LINE 94 IN constants.asm
-C_:                 0003 DEFINED AT LINE 123 IN constants.asm
-D_:                 0002 DEFINED AT LINE 96 IN constants.asm
-E_:                 0003 DEFINED AT LINE 97 IN constants.asm
-H_:                 0004 DEFINED AT LINE 98 IN constants.asm
-L_:                 0005 DEFINED AT LINE 99 IN constants.asm
-MHL_:               0006 DEFINED AT LINE 100 IN constants.asm
-A_:                 0007 DEFINED AT LINE 101 IN constants.asm
-MIX_:               0008 DEFINED AT LINE 102 IN constants.asm
-MIY_:               0009 DEFINED AT LINE 103 IN constants.asm
-MBC_:               000A DEFINED AT LINE 104 IN constants.asm
-MDE_:               000B DEFINED AT LINE 105 IN constants.asm
-I_:                 000C DEFINED AT LINE 106 IN constants.asm
-R_:                 000C DEFINED AT LINE 107 IN constants.asm
-REG_PAIR_IDX:       0000 DEFINED AT LINE 109 IN constants.asm
-BC_:                0000 DEFINED AT LINE 111 IN constants.asm
-DE_:                0001 DEFINED AT LINE 112 IN constants.asm
-HL_:                0002 DEFINED AT LINE 113 IN constants.asm
-SP_:                0003 DEFINED AT LINE 114 IN constants.asm
-AF_:                0003 DEFINED AT LINE 115 IN constants.asm
-AFP_:               0004 DEFINED AT LINE 116 IN constants.asm
-FLAG_IDX:           0000 DEFINED AT LINE 118 IN constants.asm
-NZ_:                0000 DEFINED AT LINE 120 IN constants.asm
-Z_:                 0001 DEFINED AT LINE 121 IN constants.asm
-NC_:                0002 DEFINED AT LINE 122 IN constants.asm
-PO_:                0004 DEFINED AT LINE 124 IN constants.asm
-PE_:                0005 DEFINED AT LINE 125 IN constants.asm
-P_:                 0006 DEFINED AT LINE 126 IN constants.asm
-M_:                 0007 DEFINED AT LINE 127 IN constants.asm
-TEC_1:              0001 DEFINED AT LINE 129 IN constants.asm
-RC2014:             0000 DEFINED AT LINE 130 IN constants.asm
-EXTENDED:           0000 DEFINED AT LINE 132 IN constants.asm
-LOADER:             0000 DEFINED AT LINE 134 IN constants.asm
-BITBANG:            0000 DEFINED AT LINE 135 IN constants.asm
+UNKNOWN_:           00-1 DEFINED AT LINE 27 IN constants.asm
+                    > USED AT LINE 183 IN MAIN.asm
+OPCODE_IDX:         0000 DEFINED AT LINE 29 IN constants.asm
+ADC_:               0000 DEFINED AT LINE 31 IN constants.asm
+ADD_:               0001 DEFINED AT LINE 32 IN constants.asm
+AND_:               0002 DEFINED AT LINE 33 IN constants.asm
+BIT_:               0003 DEFINED AT LINE 34 IN constants.asm
+CALL_:              0004 DEFINED AT LINE 35 IN constants.asm
+CCF_:               0005 DEFINED AT LINE 36 IN constants.asm
+CP_:                0006 DEFINED AT LINE 37 IN constants.asm
+CPD_:               0007 DEFINED AT LINE 38 IN constants.asm
+CPDR_:              0008 DEFINED AT LINE 39 IN constants.asm
+CPI_:               0009 DEFINED AT LINE 40 IN constants.asm
+CPIR_:              000A DEFINED AT LINE 41 IN constants.asm
+CPL_:               000B DEFINED AT LINE 42 IN constants.asm
+DAA_:               000C DEFINED AT LINE 43 IN constants.asm
+DEC_:               000D DEFINED AT LINE 44 IN constants.asm
+DI_:                000E DEFINED AT LINE 45 IN constants.asm
+DJNZ_:              000F DEFINED AT LINE 46 IN constants.asm
+EI_:                0010 DEFINED AT LINE 47 IN constants.asm
+EX_:                0011 DEFINED AT LINE 48 IN constants.asm
+EXX_:               0012 DEFINED AT LINE 49 IN constants.asm
+HALT_:              0013 DEFINED AT LINE 50 IN constants.asm
+IM_:                0014 DEFINED AT LINE 51 IN constants.asm
+IN_:                0015 DEFINED AT LINE 52 IN constants.asm
+INC_:               0016 DEFINED AT LINE 53 IN constants.asm
+IND_:               0017 DEFINED AT LINE 54 IN constants.asm
+INDR_:              0018 DEFINED AT LINE 55 IN constants.asm
+INI_:               0019 DEFINED AT LINE 56 IN constants.asm
+INIR_:              001A DEFINED AT LINE 57 IN constants.asm
+JP_:                001B DEFINED AT LINE 58 IN constants.asm
+JR_:                001C DEFINED AT LINE 59 IN constants.asm
+LD_:                001D DEFINED AT LINE 60 IN constants.asm
+LDD_:               001E DEFINED AT LINE 61 IN constants.asm
+LDDR_:              001F DEFINED AT LINE 62 IN constants.asm
+LDI_:               0020 DEFINED AT LINE 63 IN constants.asm
+LDIR_:              0021 DEFINED AT LINE 64 IN constants.asm
+NEG_:               0022 DEFINED AT LINE 65 IN constants.asm
+NOP_:               0023 DEFINED AT LINE 66 IN constants.asm
+OR_:                0024 DEFINED AT LINE 67 IN constants.asm
+OTDR_:              0025 DEFINED AT LINE 68 IN constants.asm
+OTIR_:              0026 DEFINED AT LINE 69 IN constants.asm
+OUT_:               0027 DEFINED AT LINE 70 IN constants.asm
+OUTD_:              0028 DEFINED AT LINE 71 IN constants.asm
+OUTI_:              0029 DEFINED AT LINE 72 IN constants.asm
+POP_:               002A DEFINED AT LINE 73 IN constants.asm
+PUSH_:              002B DEFINED AT LINE 74 IN constants.asm
+RES_:               002C DEFINED AT LINE 75 IN constants.asm
+RET_:               002D DEFINED AT LINE 76 IN constants.asm
+RETI_:              002E DEFINED AT LINE 77 IN constants.asm
+RETN_:              002F DEFINED AT LINE 78 IN constants.asm
+RL_:                0030 DEFINED AT LINE 79 IN constants.asm
+RLA_:               0031 DEFINED AT LINE 80 IN constants.asm
+RLC_:               0032 DEFINED AT LINE 81 IN constants.asm
+RLCA_:              0033 DEFINED AT LINE 82 IN constants.asm
+RLD_:               0034 DEFINED AT LINE 83 IN constants.asm
+RR_:                0035 DEFINED AT LINE 84 IN constants.asm
+RRA_:               0036 DEFINED AT LINE 85 IN constants.asm
+RRC_:               0037 DEFINED AT LINE 86 IN constants.asm
+RRCA_:              0038 DEFINED AT LINE 87 IN constants.asm
+RRD_:               0039 DEFINED AT LINE 88 IN constants.asm
+RST_:               003A DEFINED AT LINE 89 IN constants.asm
+SBC_:               003B DEFINED AT LINE 90 IN constants.asm
+SCF_:               003C DEFINED AT LINE 91 IN constants.asm
+SET_:               0003 DEFINED AT LINE 139 IN constants.asm
+SLA_:               003E DEFINED AT LINE 93 IN constants.asm
+SRA_:               003F DEFINED AT LINE 94 IN constants.asm
+SRL_:               0040 DEFINED AT LINE 95 IN constants.asm
+SUB_:               0041 DEFINED AT LINE 96 IN constants.asm
+XOR_:               0042 DEFINED AT LINE 97 IN constants.asm
+REG_IDX:            0000 DEFINED AT LINE 99 IN constants.asm
+B_:                 0000 DEFINED AT LINE 101 IN constants.asm
+C_:                 0003 DEFINED AT LINE 128 IN constants.asm
+D_:                 0002 DEFINED AT LINE 103 IN constants.asm
+E_:                 0003 DEFINED AT LINE 104 IN constants.asm
+H_:                 0004 DEFINED AT LINE 105 IN constants.asm
+L_:                 0005 DEFINED AT LINE 106 IN constants.asm
+MHL_:               0006 DEFINED AT LINE 107 IN constants.asm
+A_:                 0007 DEFINED AT LINE 108 IN constants.asm
+I_:                 0008 DEFINED AT LINE 109 IN constants.asm
+R_:                 0009 DEFINED AT LINE 110 IN constants.asm
+REG_PAIR_IDX:       0000 DEFINED AT LINE 112 IN constants.asm
+BC_:                0000 DEFINED AT LINE 114 IN constants.asm
+DE_:                0001 DEFINED AT LINE 115 IN constants.asm
+HL_:                0002 DEFINED AT LINE 116 IN constants.asm
+SP_:                0003 DEFINED AT LINE 117 IN constants.asm
+AF_:                0004 DEFINED AT LINE 118 IN constants.asm
+IX_:                0005 DEFINED AT LINE 119 IN constants.asm
+IY_:                0006 DEFINED AT LINE 120 IN constants.asm
+AFP_:               0007 DEFINED AT LINE 121 IN constants.asm
+FLAG_IDX:           0000 DEFINED AT LINE 123 IN constants.asm
+NZ_:                0000 DEFINED AT LINE 125 IN constants.asm
+Z_:                 0001 DEFINED AT LINE 126 IN constants.asm
+NC_:                0002 DEFINED AT LINE 127 IN constants.asm
+PO_:                0004 DEFINED AT LINE 129 IN constants.asm
+PE_:                0005 DEFINED AT LINE 130 IN constants.asm
+P_:                 0006 DEFINED AT LINE 131 IN constants.asm
+M_:                 0007 DEFINED AT LINE 132 IN constants.asm
+DIRECTIVE_IDX:      0000 DEFINED AT LINE 134 IN constants.asm
+ALIGN_:             0000 DEFINED AT LINE 136 IN constants.asm
+DB_:                0001 DEFINED AT LINE 137 IN constants.asm
+ORG_:               0002 DEFINED AT LINE 138 IN constants.asm
+TEC_1:              0001 DEFINED AT LINE 143 IN constants.asm
+RC2014:             0000 DEFINED AT LINE 144 IN constants.asm
+EXTENDED:           0000 DEFINED AT LINE 146 IN constants.asm
+LOADER:             0000 DEFINED AT LINE 148 IN constants.asm
+BITBANG:            0000 DEFINED AT LINE 149 IN constants.asm
 CONTROL:            0080 DEFINED AT LINE 33 IN IOSerial.asm
                     > USED AT LINE 476 IN IOSerial.asm
                     > USED AT LINE 498 IN IOSerial.asm
@@ -1401,9 +1519,9 @@ RXDATA:             0078 DEFINED AT LINE 320 IN IOSerial.asm
 RXCHAR:             0078 DEFINED AT LINE 321 IN IOSerial.asm
                     > USED AT LINE 325 IN IOSerial.asm
 GETCHAR:            0081 DEFINED AT LINE 445 IN IOSerial.asm
-                    > USED AT LINE 449 IN MAIN.asm
+                    > USED AT LINE 536 IN MAIN.asm
 PUTCHAR:            0085 DEFINED AT LINE 449 IN IOSerial.asm
-                    > USED AT LINE 493 IN MAIN.asm
+                    > USED AT LINE 601 IN MAIN.asm
 RESET:              008B DEFINED AT LINE 455 IN IOSerial.asm
                     > USED AT LINE 114 IN IOSerial.asm
 START:              0180 DEFINED AT LINE 20 IN MAIN.asm
@@ -1423,117 +1541,139 @@ NEXTTOKEN:          0216 DEFINED AT LINE 85 IN MAIN.asm
                     > USED AT LINE 67 IN MAIN.asm
 NEXTTOKEN1:         0219 DEFINED AT LINE 87 IN MAIN.asm
                     > USED AT LINE 90 IN MAIN.asm
+NEXTTOKEN2:         0227 DEFINED AT LINE 95 IN MAIN.asm
                     > USED AT LINE 92 IN MAIN.asm
-NEXTTOKEN2:         022A DEFINED AT LINE 97 IN MAIN.asm
-                    > USED AT LINE 94 IN MAIN.asm
-NEXTTOKEN2X:        0231 DEFINED AT LINE 102 IN MAIN.asm
-                    > USED AT LINE 99 IN MAIN.asm
-NEXTTOKEN3:         0236 DEFINED AT LINE 105 IN MAIN.asm
-                    > USED AT LINE 108 IN MAIN.asm
-NEXTTOKEN4:         0240 DEFINED AT LINE 111 IN MAIN.asm
-                    > USED AT LINE 104 IN MAIN.asm
-NEXTTOKEN5:         0249 DEFINED AT LINE 116 IN MAIN.asm
-                    > USED AT LINE 113 IN MAIN.asm
-NEXTTOKEN6:         0256 DEFINED AT LINE 123 IN MAIN.asm
-                    > USED AT LINE 120 IN MAIN.asm
-NEXTTOKEN7X:        0261 DEFINED AT LINE 129 IN MAIN.asm
-                    > USED AT LINE 115 IN MAIN.asm
-                    > USED AT LINE 126 IN MAIN.asm
-NEXTTOKEN7:         026B DEFINED AT LINE 135 IN MAIN.asm
-                    > USED AT LINE 131 IN MAIN.asm
-NEXTTOKEN8:         027C DEFINED AT LINE 143 IN MAIN.asm
-                    > USED AT LINE 137 IN MAIN.asm
-                    > USED AT LINE 140 IN MAIN.asm
-NEXTTOKEN9:         028B DEFINED AT LINE 151 IN MAIN.asm
-                    > USED AT LINE 148 IN MAIN.asm
-NEXTTOKEN10:        0291 DEFINED AT LINE 155 IN MAIN.asm
-                    > USED AT LINE 142 IN MAIN.asm
-                    > USED AT LINE 150 IN MAIN.asm
-IDENT:              0297 DEFINED AT LINE 165 IN MAIN.asm
-                    > USED AT LINE 117 IN MAIN.asm
-IDENT1:             029B DEFINED AT LINE 168 IN MAIN.asm
-                    > USED AT LINE 173 IN MAIN.asm
-OPCODE:             02B7 DEFINED AT LINE 184 IN MAIN.asm
-                    > USED AT LINE 125 IN MAIN.asm
-DIRECTIVE:          02C1 DEFINED AT LINE 191 IN MAIN.asm
-                    > USED AT LINE 132 IN MAIN.asm
-ISALPHANUM:         02C5 DEFINED AT LINE 209 IN MAIN.asm
-                    > USED AT LINE 114 IN MAIN.asm
-                    > USED AT LINE 174 IN MAIN.asm
-ISALPHA:            02C9 DEFINED AT LINE 226 IN MAIN.asm
-ISALPHA0:           02CB DEFINED AT LINE 228 IN MAIN.asm
-                    > USED AT LINE 252 IN MAIN.asm
-ISALPHA1:           02D1 DEFINED AT LINE 232 IN MAIN.asm
-                    > USED AT LINE 230 IN MAIN.asm
-ISHEXDIGIT:         02D7 DEFINED AT LINE 250 IN MAIN.asm
-                    > USED AT LINE 139 IN MAIN.asm
-ISDIGIT:            02DD DEFINED AT LINE 266 IN MAIN.asm
-                    > USED AT LINE 149 IN MAIN.asm
-                    > USED AT LINE 210 IN MAIN.asm
-NUMBER:             02E4 DEFINED AT LINE 285 IN MAIN.asm
-                    > USED AT LINE 152 IN MAIN.asm
-NUM1:               02EB DEFINED AT LINE 290 IN MAIN.asm
-                    > USED AT LINE 288 IN MAIN.asm
-NUM2:               02FA DEFINED AT LINE 297 IN MAIN.asm
-                    > USED AT LINE 294 IN MAIN.asm
-NUM3:               0300 DEFINED AT LINE 300 IN MAIN.asm
-                    > USED AT LINE 296 IN MAIN.asm
-HEX:                030D DEFINED AT LINE 319 IN MAIN.asm
-                    > USED AT LINE 144 IN MAIN.asm
-                    > USED AT LINE 295 IN MAIN.asm
-HEX1:               0310 DEFINED AT LINE 321 IN MAIN.asm
-                    > USED AT LINE 348 IN MAIN.asm
-HEX2:               0320 DEFINED AT LINE 330 IN MAIN.asm
-                    > USED AT LINE 328 IN MAIN.asm
-UPPER:              0327 DEFINED AT LINE 335 IN MAIN.asm
-                    > USED AT LINE 334 IN MAIN.asm
-VALID:              0329 DEFINED AT LINE 337 IN MAIN.asm
-                    > USED AT LINE 326 IN MAIN.asm
-DECIMAL:            0338 DEFINED AT LINE 362 IN MAIN.asm
-                    > USED AT LINE 299 IN MAIN.asm
-DECIMAL1:           033B DEFINED AT LINE 364 IN MAIN.asm
-                    > USED AT LINE 381 IN MAIN.asm
-SEARCHSTR:          0355 DEFINED AT LINE 397 IN MAIN.asm
-                    > USED AT LINE 187 IN MAIN.asm
-                    > USED AT LINE 430 IN MAIN.asm
-SEARCHSTR1:         035D DEFINED AT LINE 406 IN MAIN.asm
-                    > USED AT LINE 412 IN MAIN.asm
-SEARCHSTR2:         0368 DEFINED AT LINE 417 IN MAIN.asm
-                    > USED AT LINE 402 IN MAIN.asm
-                    > USED AT LINE 409 IN MAIN.asm
-NEXTCHAR:           037B DEFINED AT LINE 447 IN MAIN.asm
-                    > USED AT LINE 88 IN MAIN.asm
+NEXTTOKEN2X:        022E DEFINED AT LINE 100 IN MAIN.asm
+                    > USED AT LINE 97 IN MAIN.asm
+NEXTTOKEN3:         0233 DEFINED AT LINE 103 IN MAIN.asm
                     > USED AT LINE 106 IN MAIN.asm
+NEXTTOKEN4:         023D DEFINED AT LINE 109 IN MAIN.asm
+                    > USED AT LINE 102 IN MAIN.asm
+NEXTTOKEN5:         0246 DEFINED AT LINE 114 IN MAIN.asm
+                    > USED AT LINE 111 IN MAIN.asm
+NEXTTOKEN6:         0253 DEFINED AT LINE 121 IN MAIN.asm
                     > USED AT LINE 118 IN MAIN.asm
+NEXTTOKEN7Z:        0264 DEFINED AT LINE 129 IN MAIN.asm
+                    > USED AT LINE 126 IN MAIN.asm
+NEXTTOKEN7Y:        026F DEFINED AT LINE 135 IN MAIN.asm
+                    > USED AT LINE 132 IN MAIN.asm
+NEXTTOKEN7X:        027A DEFINED AT LINE 141 IN MAIN.asm
                     > USED AT LINE 138 IN MAIN.asm
+                    > USED AT LINE 144 IN MAIN.asm
+NEXTTOKEN7A:        0285 DEFINED AT LINE 147 IN MAIN.asm
+NEXTTOKEN7B:        0290 DEFINED AT LINE 153 IN MAIN.asm
+                    > USED AT LINE 150 IN MAIN.asm
+NEXTTOKEN7:         0293 DEFINED AT LINE 156 IN MAIN.asm
+                    > USED AT LINE 113 IN MAIN.asm
+NEXTTOKEN8A:        02A8 DEFINED AT LINE 166 IN MAIN.asm
+                    > USED AT LINE 163 IN MAIN.asm
+NEXTTOKEN8:         02AD DEFINED AT LINE 169 IN MAIN.asm
+                    > USED AT LINE 159 IN MAIN.asm
+NEXTTOKEN9:         02B6 DEFINED AT LINE 174 IN MAIN.asm
                     > USED AT LINE 171 IN MAIN.asm
-                    > USED AT LINE 292 IN MAIN.asm
-                    > USED AT LINE 322 IN MAIN.asm
-                    > USED AT LINE 365 IN MAIN.asm
-PUSHBACKCHAR:       0389 DEFINED AT LINE 466 IN MAIN.asm
-                    > USED AT LINE 124 IN MAIN.asm
-                    > USED AT LINE 141 IN MAIN.asm
+NEXTTOKEN9A:        02B9 DEFINED AT LINE 176 IN MAIN.asm
+                    > USED AT LINE 168 IN MAIN.asm
+NEXTTOKEN10:        02BF DEFINED AT LINE 180 IN MAIN.asm
+                    > USED AT LINE 173 IN MAIN.asm
+IDENT:              02C5 DEFINED AT LINE 204 IN MAIN.asm
+                    > USED AT LINE 115 IN MAIN.asm
+IDENT1:             02CB DEFINED AT LINE 208 IN MAIN.asm
+                    > USED AT LINE 219 IN MAIN.asm
+IDENT2:             02D9 DEFINED AT LINE 216 IN MAIN.asm
+                    > USED AT LINE 213 IN MAIN.asm
+IDENT3:             02DD DEFINED AT LINE 220 IN MAIN.asm
+                    > USED AT LINE 215 IN MAIN.asm
+ISSPACE:            02EA DEFINED AT LINE 244 IN MAIN.asm
+                    > USED AT LINE 89 IN MAIN.asm
+                    > USED AT LINE 161 IN MAIN.asm
+ISALPHANUM:         02F0 DEFINED AT LINE 266 IN MAIN.asm
+                    > USED AT LINE 112 IN MAIN.asm
+                    > USED AT LINE 214 IN MAIN.asm
+ISALPHA:            02F4 DEFINED AT LINE 286 IN MAIN.asm
+                    > USED AT LINE 312 IN MAIN.asm
+ISALPHA1:           02FA DEFINED AT LINE 290 IN MAIN.asm
+                    > USED AT LINE 288 IN MAIN.asm
+ISHEXDIGIT:         0301 DEFINED AT LINE 311 IN MAIN.asm
+ISHEXDIGIT1:        0309 DEFINED AT LINE 316 IN MAIN.asm
+ISDIGIT:            0309 DEFINED AT LINE 332 IN MAIN.asm
+                    > USED AT LINE 172 IN MAIN.asm
+                    > USED AT LINE 267 IN MAIN.asm
+                    > USED AT LINE 313 IN MAIN.asm
+NUMBER:             0310 DEFINED AT LINE 355 IN MAIN.asm
                     > USED AT LINE 175 IN MAIN.asm
-                    > USED AT LINE 298 IN MAIN.asm
-PROMPT:             038F DEFINED AT LINE 471 IN MAIN.asm
-CRLF:               0398 DEFINED AT LINE 476 IN MAIN.asm
-ERROR:              039F DEFINED AT LINE 481 IN MAIN.asm
+NUMBER1:            0317 DEFINED AT LINE 360 IN MAIN.asm
+                    > USED AT LINE 358 IN MAIN.asm
+NUMBER2:            0326 DEFINED AT LINE 367 IN MAIN.asm
+                    > USED AT LINE 364 IN MAIN.asm
+NUMBER3:            032C DEFINED AT LINE 370 IN MAIN.asm
+                    > USED AT LINE 366 IN MAIN.asm
+HEX:                033C DEFINED AT LINE 392 IN MAIN.asm
+                    > USED AT LINE 167 IN MAIN.asm
+                    > USED AT LINE 365 IN MAIN.asm
+HEX1:               033F DEFINED AT LINE 394 IN MAIN.asm
+                    > USED AT LINE 421 IN MAIN.asm
+HEX2:               034F DEFINED AT LINE 403 IN MAIN.asm
+                    > USED AT LINE 401 IN MAIN.asm
+UPPER:              0356 DEFINED AT LINE 408 IN MAIN.asm
+                    > USED AT LINE 407 IN MAIN.asm
+VALID:              0358 DEFINED AT LINE 410 IN MAIN.asm
+                    > USED AT LINE 399 IN MAIN.asm
+DECIMAL:            0367 DEFINED AT LINE 437 IN MAIN.asm
+                    > USED AT LINE 369 IN MAIN.asm
+DECIMAL1:           036A DEFINED AT LINE 439 IN MAIN.asm
+                    > USED AT LINE 456 IN MAIN.asm
+SEARCHSTR:          0385 DEFINED AT LINE 479 IN MAIN.asm
+                    > USED AT LINE 125 IN MAIN.asm
+                    > USED AT LINE 131 IN MAIN.asm
+                    > USED AT LINE 137 IN MAIN.asm
+                    > USED AT LINE 143 IN MAIN.asm
+                    > USED AT LINE 149 IN MAIN.asm
+                    > USED AT LINE 515 IN MAIN.asm
+SEARCHSTR1:         038E DEFINED AT LINE 488 IN MAIN.asm
+                    > USED AT LINE 494 IN MAIN.asm
+SEARCHSTR2:         039B DEFINED AT LINE 500 IN MAIN.asm
+                    > USED AT LINE 485 IN MAIN.asm
+                    > USED AT LINE 491 IN MAIN.asm
+NEXTCHAR:           03AF DEFINED AT LINE 534 IN MAIN.asm
+                    > USED AT LINE 88 IN MAIN.asm
+                    > USED AT LINE 104 IN MAIN.asm
+                    > USED AT LINE 116 IN MAIN.asm
+                    > USED AT LINE 160 IN MAIN.asm
+                    > USED AT LINE 211 IN MAIN.asm
+                    > USED AT LINE 362 IN MAIN.asm
+                    > USED AT LINE 395 IN MAIN.asm
+                    > USED AT LINE 440 IN MAIN.asm
+PUSHBACKCHAR:       03BD DEFINED AT LINE 555 IN MAIN.asm
+                    > USED AT LINE 122 IN MAIN.asm
+                    > USED AT LINE 162 IN MAIN.asm
+                    > USED AT LINE 177 IN MAIN.asm
+                    > USED AT LINE 221 IN MAIN.asm
+                    > USED AT LINE 368 IN MAIN.asm
+                    > USED AT LINE 378 IN MAIN.asm
+PROMPT:             03C3 DEFINED AT LINE 560 IN MAIN.asm
+CRLF:               03CC DEFINED AT LINE 565 IN MAIN.asm
+ERROR:              03D3 DEFINED AT LINE 570 IN MAIN.asm
                     > USED AT LINE 58 IN MAIN.asm
-PRINTSTR:           03A4 DEFINED AT LINE 486 IN MAIN.asm
+PRINT:              03D8 DEFINED AT LINE 575 IN MAIN.asm
                     > USED AT LINE 23 IN MAIN.asm
                     > USED AT LINE 46 IN MAIN.asm
-                    > USED AT LINE 472 IN MAIN.asm
-                    > USED AT LINE 477 IN MAIN.asm
-PUTSTR0:            03AA DEFINED AT LINE 492 IN MAIN.asm
-                    > USED AT LINE 498 IN MAIN.asm
-PUTSTR:             03AE DEFINED AT LINE 495 IN MAIN.asm
-                    > USED AT LINE 483 IN MAIN.asm
-                    > USED AT LINE 488 IN MAIN.asm
-OPCODES:            03B3 DEFINED AT LINE 1 IN data.asm
-                    > USED AT LINE 186 IN MAIN.asm
-REG:                04C6 DEFINED AT LINE 72 IN data.asm
-REG_PAIRS:          0500 DEFINED AT LINE 90 IN data.asm
-FLAGS:              0514 DEFINED AT LINE 100 IN data.asm
+                    > USED AT LINE 561 IN MAIN.asm
+                    > USED AT LINE 566 IN MAIN.asm
+PRINTSTR:           03DD DEFINED AT LINE 593 IN MAIN.asm
+                    > USED AT LINE 572 IN MAIN.asm
+                    > USED AT LINE 577 IN MAIN.asm
+PRINTSTR1:          03E2 DEFINED AT LINE 599 IN MAIN.asm
+                    > USED AT LINE 603 IN MAIN.asm
+OPCODES:            03EA DEFINED AT LINE 1 IN data.asm
+                    > USED AT LINE 124 IN MAIN.asm
+REGISTERS:          04FD DEFINED AT LINE 72 IN data.asm
+                    > USED AT LINE 136 IN MAIN.asm
+REG_PAIRS:          0512 DEFINED AT LINE 86 IN data.asm
+                    > USED AT LINE 130 IN MAIN.asm
+FLAGS:              052C DEFINED AT LINE 98 IN data.asm
+                    > USED AT LINE 142 IN MAIN.asm
+                    > USED AT LINE 148 IN MAIN.asm
+DIRECTIVES:         0541 DEFINED AT LINE 110 IN data.asm
 RST08:              0800 DEFINED AT LINE 3 IN ram.asm
                     > USED AT LINE 118 IN IOSerial.asm
                     > USED AT LINE 458 IN IOSerial.asm
@@ -1566,15 +1706,15 @@ PUTCVEC:            0814 DEFINED AT LINE 13 IN ram.asm
                     > USED AT LINE 451 IN IOSerial.asm
                     > USED AT LINE 470 IN IOSerial.asm
 VTEMP1:             0816 DEFINED AT LINE 15 IN ram.asm
-                    > USED AT LINE 291 IN MAIN.asm
-                    > USED AT LINE 301 IN MAIN.asm
+                    > USED AT LINE 361 IN MAIN.asm
+                    > USED AT LINE 371 IN MAIN.asm
 VTEMP2:             0818 DEFINED AT LINE 16 IN ram.asm
 VPUSHBACK:          081A DEFINED AT LINE 18 IN ram.asm
                     > USED AT LINE 29 IN MAIN.asm
-                    > USED AT LINE 448 IN MAIN.asm
-                    > USED AT LINE 450 IN MAIN.asm
-                    > USED AT LINE 452 IN MAIN.asm
-                    > USED AT LINE 468 IN MAIN.asm
+                    > USED AT LINE 535 IN MAIN.asm
+                    > USED AT LINE 537 IN MAIN.asm
+                    > USED AT LINE 539 IN MAIN.asm
+                    > USED AT LINE 557 IN MAIN.asm
 VTOKEN:             081B DEFINED AT LINE 19 IN ram.asm
                     > USED AT LINE 30 IN MAIN.asm
                     > USED AT LINE 51 IN MAIN.asm
@@ -1586,9 +1726,9 @@ VASMPTR:            0820 DEFINED AT LINE 22 IN ram.asm
                     > USED AT LINE 34 IN MAIN.asm
 VSTRPTR:            0822 DEFINED AT LINE 23 IN ram.asm
                     > USED AT LINE 36 IN MAIN.asm
-                    > USED AT LINE 166 IN MAIN.asm
-                    > USED AT LINE 176 IN MAIN.asm
-                    > USED AT LINE 177 IN MAIN.asm
+                    > USED AT LINE 123 IN MAIN.asm
+                    > USED AT LINE 205 IN MAIN.asm
+                    > USED AT LINE 222 IN MAIN.asm
 VSYMPTR:            0824 DEFINED AT LINE 24 IN ram.asm
                     > USED AT LINE 39 IN MAIN.asm
 VEXPRPTR:           0826 DEFINED AT LINE 25 IN ram.asm

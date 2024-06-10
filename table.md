@@ -82,10 +82,10 @@ Notes:
 | INC rp        | 03 \| (rc << 4)       |
 | ADD HL,rp     | 09 \| (rc << 4)       |
 | DEC rp        | 0B \| (rc << 4)       |
-| PUSH rp       | C5 \| (rc << 4)       |
-| POP rp        | C1 \| (rc << 4)       |
-| LD (expr),rp# | ED 43 nn nn           |
-| LD rp#,(expr) | ED 4B nn nn           |
+| PUSH rp#      | C5 \| (rc << 4)       |
+| POP rp#       | C1 \| (rc << 4)       |
+| LD (expr),rp  | ED 43 nn nn           |
+| LD rp,(expr)  | ED 4B nn nn           |
 
 - to use IX as receiver, generate DD gc(r=(HL))
 - to use IY as receiver, generate FD gc(r=(HL))
@@ -208,12 +208,12 @@ Notes:
 | L        | 5   |
 | (HL)     | 6   |
 | A        | 7   |
+| I        | 8   |
+| R        | 9   |
 | (IXexpr) | 8   |
 | (IYexpr) | 9   |
 | (BC)     | 10  |
 | (DE)     | 11  |
-| I        | 12  |
-| R        | 13  |
 
 Notes:
 
@@ -233,8 +233,8 @@ Notes:
 
 Notes:
 
-- rp - except AF'
-- rp# - except HL,AF'
+- rp - except AF, AF'
+- rp# - except SP, AF', the rc for AF is 3 (same as SP)
 
 ## Flag mapping
 
@@ -249,4 +249,8 @@ Notes:
 | P   | 6   |
 | M   | 7   |
 
+Notes:
+
 - f# - except PO,PE,P,M
+- need to handle ambiguity between C for carry and the C register 
+  in the operand position
