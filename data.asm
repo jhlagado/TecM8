@@ -67,7 +67,47 @@ opcodes:
 .pstr "SRL"
 .pstr "SUB"
 .pstr "XOR"
-.db 0        
+.pstr ""                    ; terminate list with a string of zero length
+
+reg:
+
+.pstr "B"
+.pstr "C"
+.pstr "D"
+.pstr "E"
+.pstr "H"
+.pstr "L"
+.pstr "(HL)"
+.pstr "A"
+.pstr "(IX + expr)"
+.pstr "(IY + expr)"
+.pstr "(BC)"
+.pstr "(DE)"
+.pstr "I"
+.pstr "R"
+.pstr ""                    ; terminate list with a string of zero length
+
+reg_pairs:
+
+.pstr "BC"
+.pstr "DE"
+.pstr "HL"
+.pstr "SP"
+.pstr "AF"
+.pstr "AF'"
+.pstr ""                    ; terminate list with a string of zero length
+
+flags:
+
+.pstr "NZ"
+.pstr "Z"
+.pstr "NC"
+.pstr "C"
+.pstr "PO"
+.pstr "PE"
+.pstr "P"
+.pstr "M"
+.pstr ""                    ; terminate list with a string of zero length
 
 ; *******************************************************************************
 ; *********  END OF DATA   ******************************************************

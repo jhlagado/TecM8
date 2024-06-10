@@ -11,30 +11,11 @@
 ; *****************************************************************************
 
 ; **************************************************************************
-; Constants
-; **************************************************************************
-
-    TRUE        EQU -1		
-    FALSE       EQU 0
-    CTRL_C      equ 3
-    CTRL_H      equ 8
-
-; **************************************************************************
 ; Page 0  Initialisation
 ; **************************************************************************		
 
 	.ORG ROMSTART + $180	; 0+180 put TecM8 code from here	
 
-
-EOF_        .equ 0
-NEWLN_      .equ 1
-COMMENT_    .equ 2
-NUM_        .equ 3
-LABEL_      .equ 4
-IDENT_      .equ 5
-END_        .equ 6
-DIRECT_        .equ 7
-SYM_        .equ 8
 
 start:                      ; entry point of TecM8
     ld sp,STACK		        
@@ -142,7 +123,7 @@ nextToken5:
 nextToken6:    
     call nz,pushBackChar            ; Push back the character if it's not null
     call opcode
-    jr nc,nextToken7x
+    jr z,nextToken7x
     ld a,OPCODE_                    ; Return with IDENT token
     ret
 nextToken7x:
@@ -174,7 +155,7 @@ nextToken9:
 nextToken10:
     ld l,a                          ; Load the token into L
     ld h,0                          ; Clear H
-    ld a,SYM_                       ; Return with SYM token
+    ld a,UNKNOWN_                   ; Return with UNKNOWN token
     ret
     
 ; collects adds ident to string heap
@@ -200,6 +181,13 @@ ident1:
     ld (hl),e                       ; save lsb(length)
     ret
 
+opcode:
+    ex de,hl                        ; de = string to search for
+    ld hl,opcodes                   ; list of strings to search
+    call searchStr
+    cp NO_MATCH                     ; update zero flag                           
+    ret
+    
 directive:
     ld hl,0
     ret
@@ -393,39 +381,40 @@ decimal1:
     jr decimal1                 ; Jump back to the start of the loop    
 
 
-; SearchStrings: search through a list of Pascal strings for a match. 
+; SearchStr: search through a list of Pascal strings for a match. 
 
 ; Inputs:
 ; de: Points to the string to search for.
 ; hl: Points to the start of the list of strings.
 
 ; Outputs:
-; a: Contains the index of the matching string if a match is found, 
+; a: index of the matching string if a match is found, 
 ;    or -1 if no match is found.
 
 ; Destroyed: a,b,c,d,e,h,l
 
     ld c, 0                     ; Initialize the index counter
-searchStrings:
+searchStr:
     ld a,(de)                   ; Load the length of the string to search for
     ld b,a                      ; Copy the length to B for looping
     push hl                     ; Store the address of the current string on the stack
     cp (hl)                     ; Compare with the length of the current string in the list
-    jr nz, nextString           ; If the lengths are not equal, move to the next string
+    jr nz, searchStr2           ; If the lengths are not equal, move to the next string
     inc de                      ; Move to the start of the string data
     inc hl                      ; Move to the start of the string data
 
-compareChars:
+searchStr1:
     ld a,(de)                   ; Load the next character from the string to search for
     cp (hl)                     ; Compare with the next character in the current string
-    jr nz,nextString            ; If the characters are not equal, move to the next string
+    jr nz,searchStr2            ; If the characters are not equal, move to the next string
     inc de                      ; Move to the next character in the string to search for
     inc hl                      ; Move to the next character in the current string
-    djnz compareChars           ; Loop until we've compared all characters
+    djnz searchStr1             ; Loop until we've compared all characters
     ld a,c                      ; Load the index of the matching string into A
+    or a                        ; 
     ret 
 
-nextString:
+searchStr2:
     pop hl                      ; Restore the address of the current string from the stack
     ld a,(hl)                   ; Load the length of the current string
     inc a                       ; a = length byte plus length of string
@@ -438,8 +427,9 @@ nextString:
     inc c                       ; Increment the index counter
     ld a,(hl)                   ; a = length of next string
     or a                        ; If a is not zero, continue searching
-    jr nz,searchStrings          
-    ld a,-1                     ; No match found, return -1
+    jr nz,searchStr          
+    ld a,NO_MATCH               ; No match found
+    or a
     ret 
     
 ; nextChar: checks if there is a character that has been pushed back for re-reading. 
