@@ -17,63 +17,138 @@
 	.ORG ROMSTART + $180	; 0+180 put TecM8 code from here	
 
 
-start:                      ; entry point of TecM8
-    ld sp, STACK		        
-    call init
-    call print		
+; *****************************************************************************
+; Routine: start
+; 
+; Purpose:
+;    Entry point of TecM8. Initializes the stack pointer, calls the initialization
+;    routine, prints TecM8 version information, and jumps to the parsing routine.
+; 
+; Inputs:
+;    None
+; 
+; Outputs:
+;    None
+; 
+; Registers Destroyed:
+;    A, HL
+; *****************************************************************************
+
+start:
+    ld sp, STACK        ; Initialize stack pointer
+    call init           ; Call initialization routine
+    call print          ; Print TecM8 version information
     .pstr "TecM8 0.0\r\n"
-    jp parse
+    jp parse            ; Jump to the parsing routine
+
+; *****************************************************************************
+; Routine: init
+; 
+; Purpose:
+;    Initializes various pointers and variables used by TecM8.
+; 
+; Inputs:
+;    None
+; 
+; Outputs:
+;    None
+; 
+; Registers Destroyed:
+;    A, HL
+; *****************************************************************************
 
 init:
-    xor a                       
-    ld (vToken), a                      ; NUL_ token
-    ld (vBufferPos), a                  ; 0th buffer pos
-    ld hl, assembly
-    ld (vAsmPtr), hl
-    ld hl, strings
-    ld (vStrPtr), hl
-    ld (vTokenVal), hl
-    ld hl, symbols
-    ld (vSymPtr), hl
-    ld hl, exprs
-    ld (vExprPtr), hl
-    ret
+    xor a               ; Clear A register
+    ld (vToken), a      ; Initialize vToken with NUL_ token
+    ld (vBufferPos), a  ; Initialize buffer position
+    ld hl, assembly     ; Load assembly pointer
+    ld (vAsmPtr), hl    ; Store in vAsmPtr
+    ld hl, strings      ; Load strings pointer
+    ld (vStrPtr), hl    ; Store in vStrPtr
+    ld (vTokenVal), hl  ; Initialize token value pointer
+    ld hl, symbols      ; Load symbols pointer
+    ld (vSymPtr), hl    ; Store in vSymPtr
+    ld hl, exprs        ; Load expressions pointer
+    ld (vExprPtr), hl   ; Store in vExprPtr
+    ret                 ; Return
+
+; *****************************************************************************
+; Routine: parse
+; 
+; Purpose:
+;    Parses the input program, calling the statementList routine, printing the
+;    completion message, and halting the system.
+; 
+; Inputs:
+;    None
+; 
+; Outputs:
+;    None
+; 
+; Registers Destroyed:
+;    None
+; *****************************************************************************
 
 parse:
-    call statementList
-    call print		
-    .pstr "Parsing completed successfully.";
-    halt
+    call statementList         ; Parse the input program
+    call print                 ; Print completion message
+    .pstr "Parsing completed successfully."
+    halt                       ; Halt the system
+
+; *****************************************************************************
+; Routine: statementList
+; 
+; Purpose:
+;    Parses a list of statements, repeatedly calling the statement routine until
+;    the end of file (EOF) token is encountered.
+; 
+; Inputs:
+;    None
+; 
+; Outputs:
+;    None
+; 
+; Registers Destroyed:
+;    A
+; *****************************************************************************
 
 statementList:
-    call nextToken
-    cp EOF_
-    ret z
-    call statement
-    jr statementList 
+    call nextToken             ; Get the next token
+    cp EOF_                    ; Check if it's the end of file
+    ret z                      ; If yes, return
+    call statement             ; Parse a statement
+    jr statementList           ; Repeat for the next statement
+
+; *****************************************************************************
+; Routine: statement
+; 
+; Purpose:
+;    Parses a single statement, checking its type (label, opcode, or directive)
+;    and performing corresponding actions.
+; 
+; Inputs:
+;    None
+; 
+; Outputs:
+;    None
+; 
+; Registers Destroyed:
+;    A
+; *****************************************************************************
 
 statement:
-    cp LABEL_
-    jr nz,statement10
-    ; call addLabel                     ; add label to symbol table 
-statement10:    
-    call nextToken
-    cp OPCODE_
-    jr nz, statement1
-    ; jp parseInstruction
-statement1:    
-    cp DIRECT_
-    ret nz
-    ; jp parseDirective
-    ret
-
-match:
-    ret nz
-    push af
-    call nextToken
-    ld l, a
-    pop af
-    ld a, l
+    cp LABEL_                  ; Check if it's a label
+    jr nz, statement10         ; If not, jump to statement10
+    ; call addLabel           ; Add label to symbol table
+statement10:
+    call nextToken             ; Get the next token
+    cp OPCODE_                 ; Check if it's an opcode
+    jr nz, statement1          ; If not, jump to statement1
+    ; jp parseInstruction     ; Jump to parseInstruction routine
+statement1:
+    cp DIRECT_                 ; Check if it's a directive
+    ret nz                     ; If not, return
+    ; jp parseDirective        ; Jump to parseDirective routine
     ret
 
 ; nextToken is a lexer function that reads characters from the input and classifies 
@@ -88,439 +163,527 @@ match:
 
 ; Destroyed: None
 
+; *****************************************************************************
+; Routine: nextToken
+; 
+; Purpose:
+;    Parses the next token from the input stream, identifying various types of
+;    tokens such as identifiers, labels, opcodes, registers, flags, numbers,
+;    and special characters.
+; 
+; Inputs:
+;    None
+; 
+; Outputs:
+;    A - Token representing the type of the parsed element
+; 
+; Registers Destroyed:
+;    A, BC, DE, HL
+; *****************************************************************************
+
 nextToken:
-    bit 7, (vToken)                 ; Check the high bit of the pushback buffer
-    jp z, nextToken0               
-    ld a, (vToken)                  ; If the high bit is 1, load the pushed back character into A
-    ld hl, (vTokenVal)
-    res 7,a                         ; Clear the high bit
-    ld (vToken), a                  ; Store the character back in the buffer
-    ret                             ; Return with the pushed back character in A
+    bit 7, (vToken)             ; Check the high bit of the pushback buffer
+    jp z, nextToken0            ; If high bit clear, nothing pushed back 
+    ld a, (vToken)              ; If high bit set, load the pushed back token type into A
+    ld hl, (vTokenVal)          ; and token value into HL
+    res 7, a                    ; Clear the high bit
+    ld (vToken), a              ; Store the character back in the buffer
+    ret                         ; Return with the pushed back character in A
+
 nextToken0:
-    ld hl, 0
+    ld hl, 0                    ; Initialize HL with 0
 nextToken1:
-    call nextChar                   ; Get the next character
-    call isSpace                    ; Is it a space?
-    jr z, nextToken1                ; If yes, skip it and get the next character
-    or a                            ; Is it null (end of input)?
-    jr nz, nextToken2               ; If not, continue to the next check
-    ld a, EOF_                      ; If yes, return with EOF token
+    call nextChar               ; Get the next character
+    call isSpace                ; Check if it's a space
+    jr z, nextToken1            ; If yes, skip it and get the next character
+    or a                        ; Is it null (end of input)?
+    jr nz, nextToken2           ; If not, continue to the next check
+    ld a, EOF_                  ; If yes, return with EOF token
     ret
+
 nextToken2:
-    cp "\n"                         ; Is it a newline?
-    jr nz, nextToken3               ; If not, continue to the next check
-    ret z                           ; token same value as char in a
+    cp "\n"                     ; Is it a newline?
+    jr nz, nextToken3           ; If not, continue to the next check
+    ret z                       ; Return with newline token
+
 nextToken3:
-    cp ";"                          ; Is it a comment?
-    call nz, nextToken5             ; If not, continue to the next check
+    cp ";"                      ; Is it a comment?
+    call nz, nextToken5         ; If not, continue to the next check
+
 nextToken4:
-    call nextChar                   ; Get the next character in the comment
-    cp " "+1                        ; Loop until the next control character
+    call nextChar               ; Get the next character in the comment
+    cp " "+1                    ; Loop until the next control character
     jr nc, nextToken4
-    ld a, COMMENT_                  ; Return with COMMENT token
+    ld a, COMMENT_              ; Return with COMMENT token
     ret
+
 nextToken5:
-    cp "_"                          ; Is it an identifier?
-    jr z, nextToken6                ; If yes, continue to the next check
-    call isAlphaNum                 ; If not, check if it's alphanumeric
-    jr nc, nextToken13              ; If not, continue to the next check
+    cp "_"                      ; Is it an identifier?
+    jr z, nextToken6            ; If yes, continue to the next check
+    call isAlphaNum             ; If not, check if it's alphanumeric
+    jr nc, nextToken13          ; If not, continue to the next check
+
 nextToken6:
-    call ident                      ; Parse the identifier
-    call nextChar                   ; Get the next character
-    cp ":"                          ; Is it a label?
-    jr nz, nextToken7               ; If not, continue to the next check
-    ld a, LABEL_                    ; If yes, return with LABEL token
+    call ident                  ; Parse the identifier
+    call nextChar               ; Get the next character
+    cp ":"                      ; Is it a label?
+    jr nz, nextToken7           ; If not, continue to the next check
+    ld a, LABEL_                ; If yes, return with LABEL token
     ret
+
 nextToken7:    
-    call rewindChar               ; Push back the character
-    ld (vStrPtr), hl                ; restore string heap ptr to prev location
-    ld de, opcodes                  ; list of opcodes to search
+    call rewindChar             ; Push back the character
+    ld (vStrPtr), hl            ; Restore string heap pointer to previous location
+    ld de, opcodes              ; List of opcodes to search
     call searchStr
     jr nc, nextToken8
-    ld a, OPCODE_                   ; Return with IDENT token
+
+    ld a, OPCODE_               ; Return with OPCODE token
     ret
+
 nextToken8:
-    ld de, reg_pairs                ; list of register pairs to search
+    ld de, reg_pairs            ; List of register pairs to search
     call searchStr
     jr nc, nextToken9
-    ld a, REGPAIR_                  ; Return with REGPAIR token
+
+    ld a, REGPAIR_              ; Return with REGPAIR token
     ret
+
 nextToken9:
-    ld de, registers                ; list of registers to search
+    ld de, registers            ; List of registers to search
     call searchStr
     jr nc, nextToken10
-    ld a, REG_                      ; Return with REG token
+
+    ld a, REG_                  ; Return with REG token
     ret
+
 nextToken10:
-    ld de, flags                    ; list of registers to search
+    ld de, flags                ; List of flags to search
     call searchStr
-    jr nc, nextToken10
-    ld a, FLAG_                     ; Return with FLAG token
+    jr nc, nextToken11
+
+    ld a, FLAG_                 ; Return with FLAG token
     ret
+
 nextToken11:
-    ld de, flags                    ; list of registers to search
+    ld de, flags                ; List of flags to search
     call searchStr
     jr nc, nextToken12
-    ld a, DIRECT_                   ; Return with DIRECT token
+
+    ld a, DIRECT_               ; Return with DIRECT token
     ret
+
 nextToken12:
-    ld a, IDENT_                    ; Return with IDENT token
+    ld a, IDENT_                ; Return with IDENT token
     ret
+
 nextToken13:
     ld hl, 0
-    cp "$"                          ; Is it a hexadecimal number?
-    jr nz, nextToken14              ; If not, continue to the next check
-    call nextChar                   ; Get the next character
-    call isSpace                    ; Check if it's the assembly pointer
-    call rewindChar               ; Push back the character (flags unaffected)
-    ret z                           ; token same value as char in a
-    call number0                    ; process hexasdecimal number
+    cp "$"                      ; Is it a hexadecimal number?
+    jr nz, nextToken14          ; If not, continue to the next check
+    call nextChar               ; Get the next character
+    call isSpace                ; Check if it's the assembly pointer
+    call rewindChar             ; Push back the character (flags unaffected)
+    ret z                       ; Return with the assembly pointer token
+    call number_hex                ; Process hexadecimal number
     jr nextToken16
+
 nextToken14:    
-    cp "-"                          ; Is it a negative number?
-    jr z, nextToken15               ; If yes, continue to the next check
-    call isDigit                    ; Check if it's a digit
-    jr nc, nextToken17              ; Jump to the next check
+    cp "-"                      ; Is it a negative number?
+    jr z, nextToken15           ; If yes, continue to the next check
+    call isDigit                ; Check if it's a digit
+    jr nc, nextToken17          ; Jump to the next check
+
 nextToken15:
-    call number                     ; Parse the number
+    call number                 ; Parse the number
+
 nextToken16:
-    ld a, NUM_                      ; Return with NUM token
+    ld a, NUM_                  ; Return with NUM token
     ret
+
 nextToken17:
     cp "("
-    ret z                           ; token same value as char in a
+    ret z                       ; Return with the '(' token
     cp ")"
-    ret z                           ; token same value as char in a
+    ret z                       ; Return with the ')' token
     cp ","
-    ret z                           ; token same value as char in a
-    ld a, UNKNOWN_                  ; Return with UNKNOWN token
+    ret z                       ; Return with the ',' token
+    ld a, UNKNOWN_              ; Return with UNKNOWN token
     ret
 
+; *****************************************************************************
+; Routine: pushBackToken
+; 
+; Purpose:
+;    Pushes back a token into the pushback buffer to allow the token to be
+;    re-read by the nextToken routine.
+; 
+; Inputs:
+;    A  - token type
+;    HL - token value
+; 
+; Outputs:
+;    None
+; 
+; Registers Destroyed:
+;    A, DE
+; *****************************************************************************
 
 pushBackToken:
-    set 7, a                        ; Set the high bit of the character with affecting flags
-    ld (vToken), a                  ; Store the character in the pushback buffer
-    ld (vTokenVal), hl
-    ret 
+    set 7, a                    ; Set the high bit of the token type (without affecting flags)
+    ld (vToken), a              ; push back the token
+    ld (vTokenVal), hl          ; push back the token value
+    ret                         
+   
 
-; ident
-;
-; Reads characters from the input stream and stores them in a string on the heap 
-; until a non-alphanumeric character is encountered. The string is stored in 
-; Pascal string format, with the length of the string stored in the first byte.
-;
-; Input:
-;   a: The first character of the identifier.
-;   (vStrPtr): Points to the top of the strings heap.
-;
-; Output:
-;   hl: Points to the start of the stored string in memory.
-;   a: Contains the length of the string.
-;   (vStrPtr): Updated to point to the top of the strings heap after the stored string.
-;
-; Destroyed:
-;   c, de
+; *****************************************************************************
+; Routine: ident
+; 
+; Purpose:
+;    Reads characters from the input stream until a charcter which is not an
+;    an underscore or an alphanumeric character is encountered. Writes the chars 
+;    to a Pascal string and updates the top of the strings heap pointer.
+;    It also calculates the length of the string and stores it at the beginning
+;    of the string.
+; 
+; Inputs:
+;    A - Current character read from the input stream
+;    vStrPtr - Address of the top of strings heap pointer
+; 
+; Outputs:
+;    None
+; 
+; Registers Destroyed:
+;    A, DE, HL
+; *****************************************************************************
 
 ident:
-    ld hl, (vStrPtr)                 ; de = hl = top of strings heap
-    ld de, hl                        
-    inc hl                          ; skip length byte
+    ld hl, (vStrPtr)        ; Load the address of the top of strings heap
+    ld de, hl               ; Copy it to DE (DE = HL = top of strings heap)
+    inc hl                  ; Move to the next byte to skip the length byte
 ident1:
-    ld (hl), a                       ; write char
-    inc hl
-    call nextChar
-    cp "_"
-    jr z, ident2
-    call isAlphanum
-    jr nc, ident3
+    ld (hl), a              ; Write the current character to the string buffer
+    inc hl                  ; Move to the next position in the buffer
+    call nextChar           ; Get the next character from the input stream
+    cp "_"                  ; Compare with underscore character
+    jr z, ident2            ; If underscore, jump to ident2
+    call isAlphanum         ; Check if the character is alphanumeric
+    jr nc, ident3           ; If not alphanumeric, jump to ident3
 ident2:
-    ld (hl), a
-    inc hl
-    jr ident1
+    ld (hl), a              ; Write the current character to the string buffer
+    inc hl                  ; Move to the next position in the buffer
+    jr ident1               ; Repeat the process
 ident3:
-    call rewindChar
-    ld (vStrPtr), hl                 ; update top of strings heap
-    or a
-    sbc hl, de                       ; hl = length, de = string 
-    ex de, hl                        ; e = len, hl = string
-    ld (hl), e                       ; save lsb(length)
-    ld a, e                          ; a = length
-    ret
+    call rewindChar         ; Rewind the input stream by one character
+    ld (vStrPtr), hl        ; Update the top of strings heap pointer
+    or a                    ; Clear A register
+    sbc hl, de              ; Calculate the length of the string (HL = length, DE = string)
+    ex de, hl               ; Swap DE and HL (E = length, HL = string)
+    ld (hl), e              ; Store the length at the beginning of the string buffer
+    ld a, e                 ; Load the length into A
+    ret                     
 
-; isSpace
-
-; checks if the character in the a register is space or tab 
-
+; *****************************************************************************
+; Routine: isSpace
+; 
+; Purpose:
+;    Checks if the character in the A register is a space or tab character.
+; 
 ; Input:
-;   a: Contains the character to be checked.
-
+;    A - Contains the character to be checked.
+; 
 ; Output:
-;   a: Contains the character to be checked.
-;   cf: Set if the input character was alphabetic, cleared otherwise.
-
-; Destroyed: 
-;   none
+;    A - Contains the character to be checked.
+;    CF - Set if the input character was space or tab, cleared otherwise.
+; 
+; Destroyed:
+;    None
+; *****************************************************************************
 
 isSpace:
-    cp " "                          ; is char lowercase?
-    ret z                   
-    cp "\t"                         ; is char > last letter?
-    ret 
+    cp " "            ; Compare with space character
+    ret z             ; Return if it's space
+    cp "\t"           ; Compare with tab character
+    ret               ; Return
 
-; isAlphaNum 
-
-; checks if the character in the a register is an alphanumeric character 
-; (either uppercase or lowercase). 
-; If the character is alphabetic, it converts it to uppercase and sets the carry flag. 
-; If the character is not alphabetic, it clears the carry flag.
-
+; *****************************************************************************
+; Routine: isAlphaNum
+; 
+; Purpose:
+;    Checks if the character in the A register is an alphanumeric character 
+;    (either uppercase or lowercase). If the character is alphabetic, it converts 
+;    it to uppercase and sets the carry flag. If the character is not alphabetic, 
+;    it clears the carry flag.
+; 
 ; Input:
-; a: Contains the character to be checked.
-
+;    A - Contains the character to be checked.
+; 
 ; Output:
-; a: Contains the uppercase version of the input character if it was alphabetic.
-; cf: Set if the input character was alphabetic, cleared otherwise.
-
-; Destroyed: c
+;    A - Contains the uppercase version of the input character if it was alphabetic.
+;    CF - Set if the input character was alphabetic, cleared otherwise.
+; 
+; Destroyed:
+;    C
+; *****************************************************************************
 
 isAlphaNum:
-    call isDigit
-    ret z                           ; falls thru to isAlpha                          
+    call isDigit        ; Check if it's a digit
+    ret z               ; If it's not a digit, continue to isAlpha
+                        ; Falls through to isAlpha
 
-; isAlpha
-
-; checks if the character in the a register is an alphabetic character 
-; (either uppercase or lowercase). 
-; If the character is alphabetic, it converts it to uppercase and sets the carry flag. 
-
+; *****************************************************************************
+; Routine: isAlpha
+; 
+; Purpose:
+;    Checks if the character in the A register is an alphabetic character 
+;    (either uppercase or lowercase). If the character is alphabetic, it converts 
+;    it to uppercase and sets the carry flag.
+; 
 ; Input:
-;   a: Contains the character to be checked.
-
+;    A - Contains the character to be checked.
+; 
 ; Output:
-;   a: Contains the uppercase version of the input character if it was alphabetic.
-;   cf: Set if the input character was alphabetic, cleared otherwise.
-
-; Destroyed: 
-;   none
+;    A - Contains the uppercase version of the input character if it was alphabetic.
+;    CF - Set if the input character was alphabetic, cleared otherwise.
+; 
+; Destroyed:
+;    None
+; *****************************************************************************
 
 isAlpha:
-    cp "a"                          ; is char lowercase?
-    jr c, isAlpha1                   
-    sub $20                         ; yes, convert a to uppercase
+    cp "a"            ; Compare with lowercase 'a'
+    jr c, isAlpha1    ; Jump if it's lower than 'a'
+    sub $20           ; Convert lowercase to uppercase
 isAlpha1:
-    cp "Z"+1                        ; is char > last letter?
-    ret nc                          ; yes, exit with cf cleared
-    cp "A"                          ; is char an uppercase letter ?
-    ccf                             ; invert cf
-    ret                             
+    cp "Z"+1          ; Compare with 'Z' + 1
+    ret nc            ; Return if it's not alphabetic
+    cp "A"            ; Compare with 'A'
+    ccf               ; Invert CF to set it if it's alphabetic
+    ret               ; Return
 
-; isDigit
-
-; checks if the character in the a register is a decimal 
-; digit (0-9). If the character is a decimal digit, it sets the carry flag. 
-
+; *****************************************************************************
+; Routine: isDigit
+; 
+; Purpose:
+;    Checks if the character in the A register is a decimal digit (0-9). If 
+;    the character is a decimal digit, it sets the carry flag.
+; 
 ; Input:
-;   a: Contains the character to be checked.
-
+;    A - Contains the character to be checked.
+; 
 ; Output:
-;   cf: Set if the input character was a digit, cleared otherwise.
-
-; Destroyed: 
-;   none
+;    CF - Set if the input character was a digit, cleared otherwise.
+; 
+; Destroyed:
+;    None
+; *****************************************************************************
 
 isDigit:
-    cp "9"+1                        ; is char > '9'?
-    ret nc                          ; yes, exit with cf cleared
-    cp "0"                          ; is char a decimal digit ?
-    ccf                             ; invert cf
-    ret
+    cp "9"+1          ; Compare with '9' + 1
+    ret nc            ; Return if it's not a digit
+    cp "0"            ; Compare with '0'
+    ccf               ; Invert CF to set it if it's a digit
+    ret               ; Return
 
-; number
-
-; parse a number from the input. It handles both decimal and hexadecimal 
-; numbers, and also supports negative numbers.
-
-; Input: 
-;   none
-
+; *****************************************************************************
+; Routine: number
+; 
+; Purpose:
+;    Parse a number from the input. Handles both decimal and hexadecimal 
+;    numbers, and supports negative numbers.
+; 
+; Input:
+;    None
+; 
 ; Output:
-;   hl: Contains the parsed number.
-
-; Destroyed: 
-;   none
-
-; vTemp1: A temporary memory location used to store the sign of the number.
-
-number0:
-    xor a
-    ld (vTemp1), a                  ; Store the sign flag in vTemp1
-    call hex                        ; If yes, parse the hexadecimal number
-    jr number3                       
+;    HL - Contains the parsed number.
+; 
+; Destroyed:
+;    None
+; *****************************************************************************
 
 number:
-    cp "-"                          ; Is it a negative number?
-    ld a, -1                        ; a = sign flag
-    jr z, number1                      
-    inc a                          
+    cp "-"             ; Check if it's a negative number
+    ld a, -1           ; Set sign flag
+    jr z, number1      
+    inc a              ; Set sign flag to positive
 number1:
-    ld (vTemp1), a                  ; Store the sign flag in vTemp1
-    call nextChar                   ; Get the next character
-    cp "$"                          ; Is it a hexadecimal number?
-    jr nz, number2                    
-    call hex                        ; If yes, parse the hexadecimal number
-    jr number3                       
+    ld (vTemp1), a     ; Store the sign flag in vTemp1
+    call nextChar      ; Get the next character
+    cp "$"             ; Check if it's a hexadecimal number
+    jr nz, number2     
+    call hex           ; If yes, parse hexadecimal number
+    jr number3         
 number2:
-    call rewindChar               ; Push back the character
-    call decimal                    ; Parse the decimal number
+    call rewindChar    ; Push back the character
+    call decimal       ; Parse decimal number
 number3:
-    ld a, (vTemp1)                  ; Load the sign from vTemp1
-    inc a                           ; Increment a
-    ret nz                        
-    ex de, hl                       ; negate the value of HL
-    ld hl, 0                       
-    or a                          
-    sbc hl, de                     
-    call rewindChar               ; Push back the character
-    ret                           
-    
-; hex
+    ld a, (vTemp1)     ; Load the sign from vTemp1
+    inc a              ; Increment to negate if necessary
+    ret nz             ; Return if sign is not zero
+    ex de, hl          ; Negate the value of HL
+    ld hl, 0           ; Load zero to clear carry
+    or a               ; Clear carry flag
+    sbc hl, de         ; Subtract DE from HL
+    call rewindChar    ; Push back the character
+    ret                ; Return
 
-; parses a hexadecimal number
+number_hex:
+    xor a
+    ld (vTemp1), a     ; Store the sign flag in vTemp1
+    call hex           ; Parse hexadecimal number
+    jr number3         
 
-; Input: none
-
+; *****************************************************************************
+; Routine: hex
+; 
+; Purpose:
+;    Parse a hexadecimal number.
+; 
+; Input:
+;    None
+; 
 ; Output:
-; hl: parsed number
-
-; Destroyed: a
+;    HL - Parsed number.
+; 
+; Destroyed:
+;    A
+; *****************************************************************************
 
 hex:
-    ld hl, 0                         ; Initialize HL to 0 to hold the result
+    ld hl, 0           ; Initialize HL to 0
 hex1:
-    call nextChar
-    cp "0"                          ; Compare with ASCII '0'
-    ret c                           ; If less, exit
-    cp "9"+1                        ; Compare with ASCII '9'
-    jr c, valid                     ; If less or equal, jump to valid
-    cp "a"                          ; is char lowercase letter?
-    jr c, hex2                   
-    sub $20                         ; yes, convert a to uppercase
+    call nextChar      ; Get the next character
+    cp "0"             ; Compare with ASCII '0'
+    ret c              ; Return if less than '0'
+    cp "9"+1           ; Compare with ASCII '9' + 1
+    jr c, valid        ; If less or equal, jump to valid
+    cp "a"             ; Compare with ASCII 'a'
+    jr c, hex2         ; If less, jump to hex2
+    sub $20            ; Convert lowercase to uppercase
 hex2:
-    cp "A"                          ; Compare with ASCII 'A'
-    ret c                           ; If less, exit invalid
-    cp "F"+1                        ; Compare with ASCII 'F'
-    jr c, upper                     ; If less or equal, jump to upper
+    cp "A"             ; Compare with ASCII 'A'
+    ret c              ; Return if less than 'A'
+    cp "F"+1           ; Compare with ASCII 'F' + 1
+    jr c, upper        ; If less or equal, jump to upper
 upper:
-    sub $37                         ; Convert from ASCII to hex
+    sub $37            ; Convert ASCII to hexadecimal
 valid:
-    sub "0"                         ; Convert from ASCII to numeric value
-    ret c                           ; < 0 not a valid hexadecimal digit so return
-    cp $10                          ; Compare the result with $10
-    ret nc                          ; > $10 not a valid hexadecimal digit so return
-    add hl, hl                      ; Multiply the number in HL by 16 by shifting it left 4 times
-    add hl, hl                      ; This is done because each hexadecimal digit represents 16^n where n is the position of the digit from the right
-    add hl, hl
-    add hl, hl
-    add a, l                        ; Add the new digit to the number in HL
-    ld  l, a                        ; Store the result back in L
-    jp  hex1                        ; Jump back to hex1 to process the next character
+    sub "0"            ; Convert ASCII to numeric value
+    ret c              ; Return if less than 0 (not a valid digit)
+    cp $10             ; Compare with 16
+    ret nc             ; Return if greater than 16 (not a valid digit)
+    add hl, hl         ; Multiply by 16
+    add hl, hl         ; Multiply by 16
+    add hl, hl         ; Multiply by 16
+    add hl, hl         ; Multiply by 16
+    add a, l           ; Add new digit to HL
+    ld  l, a           ; Store result back in L
+    jp  hex1           ; Jump back to hex1 to process next character
 
-; decimal
-
-; parses a decimal number
-
-; Input: none
-
+; *****************************************************************************
+; Routine: decimal
+; 
+; Purpose:
+;    Parse a decimal number.
+; 
+; Input:
+;    None
+; 
 ; Output:
-; hl: parsed number.
-
-; Destroyed registers:
-
-; A: Used for temporary storage and calculations.
-; DE: Used for temporary storage and calculations.
+;    HL - Parsed number.
+; 
+; Destroyed:
+;    A, DE
+; *****************************************************************************
 
 decimal:
-    ld hl, 0                     ; Initialize HL to 0 to hold the result
+    ld hl, 0           ; Initialize HL to 0
 decimal1:
-    call nextChar
-    sub "0"                      ; convert from ASCII to binary
-    ret c                        ; < 0 not a digit; return
-    cp 10                        ; Compare the result with 10
-    ret nc                       ; > 10 not a digit; return
-    inc bc                       ; Increment BC to point to the next digit
-    ld de, hl                    ; Copy HL to DE
-    add hl, hl                   ; Multiply HL by 2
-    add hl, hl                   ; Multiply HL by 4
-    add hl, de                   ; Add DE to HL to multiply HL by 5
-    add hl, hl                   ; Multiply HL by 10
-    add a, l                     ; hl += a
-    ld l, a                      
-    ld a, 0                      
-    adc a, h                     
-    ld h, a                      
-    jr decimal1                  ; Jump back to the start of the loop    
+    call nextChar      ; Get the next character
+    sub "0"            ; Convert ASCII to binary
+    ret c              ; Return if less than '0'
+    cp 10              ; Compare with 10
+    ret nc             ; Return if greater than 10
+    inc bc             ; Increment BC to point to next digit
+    ld de, hl          ; Copy HL to DE
+    add hl, hl         ; Multiply HL by 2
+    add hl, hl         ; Multiply HL by 4
+    add hl, de         ; Add DE to HL to multiply by 5
+    add hl, hl         ; Multiply HL by 10
+    add a, l           ; Add A to HL
+    ld l, a            ; Store result back in L
+    ld a, 0            ; Clear A
+    adc a, h           ; Add carry to H
+    ld h, a            ; Store result back in H
+    jr decimal1        ; Jump back to start of loop
 
 
-; searchStr
-
-; search through a list of Pascal strings for a match. 
-
+; *****************************************************************************
+; Routine: searchStr
+; 
+; Purpose:
+;    Search through a list of Pascal strings for a match.
+; 
 ; Inputs:
-;   hl: Points to the string to search for.
-;   de: Points to the start of the list of strings.
-
+;    HL - Points to the string to search for.
+;    DE - Points to the start of the list of strings.
+; 
 ; Outputs:
-;   cf: true if match
-;   a: index of the matching string if a match is found, 
-;      or -1 if no match is found.
-;   hl: Points to the string to search for.
+;    CF - True if match, false otherwise.
+;    A - Index of the matching string if a match is found, or -1 if no match 
+;        is found.
+;    HL - Points to the string to search for.
+; 
+; Destroyed:
+;    A, B, C, D, E, A', F'
+; *****************************************************************************
 
-; Destroyed: 
-;   a, b, c, d, e, a', f'
-
-    ex de, hl                   ; de = search string hl = string list
-    xor a                       ; Initialize the index counter, zf = true, cf = false
-    ex af, af'
 searchStr:
-    ld a, (de)                  ; Load the length of search string
-    ld b, a                     ; Copy the length to b for looping
-    push de                     ; Store search string 
-    push hl                     ; Store current string 
-    cp (hl)                     ; Compare with the length of the current string
-    jr nz, searchStr2           ; If the lengths are not equal, move to the next string
-    inc de                      ; Move to the start of the search string
-    inc hl                      ; Move to the start of the current string
-searchStr1:
-    ld a, (de)                  ; Load the next character from search string
-    cp (hl)                     ; Compare with the next character in the current string
-    jr nz, searchStr2           ; If the characters are not equal, move to the next string
-    inc de                      ; Move to the next character in the search string
-    inc hl                      ; Move to the next character in the current string
-    djnz searchStr1             ; Loop until we've compared all characters
-    pop hl                      ; discard current string
-    pop hl                      ; hl = search string
-    ex af, af'                  ; Load the index of the match
-    ccf                         ; if match, cf = true
-    ret 
-searchStr2:
-    pop hl                      ; Restore current string
-    pop de                      ; Restore search string
-    ld a, (hl)                  ; Load the length of the current string
-    inc a                       ; a = length byte plus length of string
-    ld c, a                     ; bc = a
+    ex de, hl             ; DE = search string, HL = string list
+    xor a                 ; Initialize index counter, ZF = true, CF = false
+    ex af, af'            ; Exchange AF with AF prime
+
+searchStrLoop:
+    ld a, (de)            ; Load length of search string
+    ld b, a               ; Copy length to B for looping
+    push de               ; Store search string
+    push hl               ; Store current string
+    cp (hl)               ; Compare with length of current string
+    jr nz, searchStrNext  ; If lengths are not equal, move to next string
+    inc de                ; Move to start of search string
+    inc hl                ; Move to start of current string
+searchStrCharLoop:
+    ld a, (de)            ; Load next character from search string
+    cp (hl)               ; Compare with next character in current string
+    jr nz, searchStrNext  ; If characters are not equal, move to next string
+    inc de                ; Move to next character in search string
+    inc hl                ; Move to next character in current string
+    djnz searchStrCharLoop ; Loop until all characters compared
+    pop hl                ; Discard current string
+    pop hl                ; HL = search string
+    ex af, af'            ; Load index of match
+    ccf                   ; If match, CF = true
+    ret
+searchStrNext:
+    pop hl                ; Restore current string
+    pop de                ; Restore search string
+    ld a, (hl)            ; Load length of current string
+    inc a                 ; A = length byte plus length of string
+    ld c, a               ; BC = A
     ld b, 0
-    add hl, bc                  ; hl += bc, the next string
-    push de                     ; Store search string
-    push hl                     ; Store current string
-    ex af, af'                  ; Increment the index counter, zf = false, cf = false
-    inc a                       
+    add hl, bc            ; HL += BC, move to next string
+    push de               ; Store search string
+    push hl               ; Store current string
+    ex af, af'            ; Increment index counter, ZF = false, CF = false
+    inc a
     ex af, af'
-    ld a, (hl)                  ; a = length of next string
-    or a                        ; If a != 0, continue searching
-    jr nz, searchStr          
-    dec a                       ; a = NO_MATCH (i.e. -1), zf = false
-    ccf                         ; cf = false
-    ret 
+    ld a, (hl)            ; A = length of next string
+    or a                  ; If A != 0, continue searching
+    jr nz, searchStrLoop
+    dec a                 ; A = NO_MATCH (i.e., -1), ZF = false
+    ccf                   ; CF = false
+    ret
     
 ; *****************************************************************************
 ; Routine: nextChar
