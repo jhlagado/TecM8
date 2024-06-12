@@ -384,6 +384,68 @@ ident3:
     ret                     
 
 ; *****************************************************************************
+; Routine: expr
+; 
+; Purpose:
+;    Collects a string until it reaches a right parenthesis, comma, semicolon,
+;    or newline character. Keeps track of parentheses to ensure correct ending
+;    of the expression.
+; 
+; Inputs:
+;    None
+; 
+; Outputs:
+;    HL - Points to the collected string.
+;    A - Contains the length of the collected string.
+; 
+; Registers Destroyed:
+;    A, C, D, E, HL
+; *****************************************************************************
+
+expr:
+    ld hl, (vStrPtr)        ; Load the address of the top of strings heap
+    ld de, hl               ; Copy it to DE (DE = HL = top of strings heap)
+    inc hl                  ; Move to the next byte to skip the length byte
+    ld c, 1                 ; Initialize parenthesis count to 1
+expr1:
+    ld (hl), a              ; Write the current character to the string buffer
+    inc hl                  ; Move to the next position in the buffer
+    call nextChar           ; Get the next character from the input stream
+    cp '('                  ; Compare with left parenthesis character
+    jr z, expr2             ; If left parenthesis, increase count
+    cp ')'                  ; Compare with right parenthesis character
+    jr z, expr3             ; If right parenthesis, decrease count
+    cp ','                  ; Compare with comma character
+    jr z, expr4             ; If comma, check if parentheses count is zero
+    cp ';'                  ; Compare with semicolon character
+    jr z, expr4             ; If semicolon, check if parentheses count is zero
+    cp '\n'                 ; Compare with newline character
+    jr z, expr4             ; If newline, check if parentheses count is zero
+    call isAlphanum         ; Check if the character is alphanumeric
+    jr nc, expr4            ; If not alphanumeric, check if parentheses count is zero
+    jr expr1                ; Repeat the process
+expr2:
+    inc c                   ; Increase parentheses count
+    jr expr1                ; Repeat the process
+expr3:
+    dec c                   ; Decrease parentheses count
+    jr nz, expr1            ; If not zero, continue collecting
+    jr expr5                ; If zero, end collection
+expr4:
+    xor a
+    cp c                    ; Check if parentheses count is zero
+    jr nz, expr1            ; If not zero, continue collecting
+expr5:
+    call rewindChar         ; Rewind the input stream by one character
+    ld (vStrPtr), hl        ; Update the top of strings heap pointer
+    or a                    ; Clear A register
+    sbc hl, de              ; Calculate the length of the string (HL = length, DE = string)
+    ex de, hl               ; Swap DE and HL (E = length, HL = string)
+    ld (hl), e              ; Store the length at the beginning of the string buffer
+    ld a, e                 ; Load the length into A
+    ret                    
+
+; *****************************************************************************
 ; Routine: isSpace
 ; 
 ; Purpose:
