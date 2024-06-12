@@ -5,15 +5,15 @@ RAMSIZE     .EQU $0800
 
 NO_MATCH    .equ    -1
 CTRL_H      .equ    8
+BUFFER_SIZE  equ 80
 
 tokens:
 
 COMMA_      .equ    ","
 COMMENT_    .equ    ";"
 DIRECT_     .equ    "D"
-ASMLOC_     .equ    "$"
-END_        .equ    "E"
-EOF_        .equ    0
+DOLLAR_     .equ    "$"
+EOF_        .equ    "E"
 FLAG_       .equ    "F"
 IDENT_      .equ    "I"
 LABEL_      .equ    "L"
@@ -24,7 +24,7 @@ PARCLOSE_   .equ    ")"
 PAROPEN_    .equ    "("
 REG_        .equ    "R"
 REGPAIR_    .equ    "P"
-UNKNOWN_    .equ    -1
+UNKNOWN_    .equ    "U"
 
 opcode_idx:
 
