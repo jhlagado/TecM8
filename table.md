@@ -2,24 +2,18 @@
 
 | instruction | generated (gc)          |
 | ----------- | ----------------------- |
-| LD r1,r2    | 40 \| (rc1 << 3) \| rc2 |
-| INC r       | 04 \| (rc << 3)         |
-| DEC r       | 05 \| (rc << 3)         |
-
-# Classic 8-bit ALU instructions
-
-| instruction | generated (gc)          |
-| ----------- | ----------------------- |
-| ADD A,r     | 80 \| rc                |
-| ADC A,r     | 88 \| rc                |
-| SUB r       | 90 \| rc                |
-| SBC A,r     | 98 \| rc                |
-| AND r       | A0 \| rc                |
-| XOR r       | A8 \| rc                |
-| OR r        | B0 \| rc                |
-| CP r        | 88 \| rc                |
+| LD r1,r2    | x=1 y=rc1 z=rc2         |
+| INC r       | x=0 y=rc z=4            |
+| DEC r       | x=0 y=rc z=5            |
+| LD r,expr   | x=0 y=rc z=6 nn         |
+| alu A,r     | x=1 y=alu z=rc          |
+| OUT nn      | x=3 y=2 z=3 nn          |
+| IN nn       | x=3 y=3 z=3 nn          |
 
 Notes:
+
+alu is an enum
+0: ADD A,	1: ADC A,	2: SUB	3: SBC A,	4: AND	5: XOR	6: OR	7: CP
 
 - to use (IX+dd) to address memory, generate DD gc(r=(HL)) dd
 - to use (IY+dd) to address memory, generate FD gc(r=(HL)) dd
@@ -29,13 +23,6 @@ Notes:
 - to use IYL, generate FD gc(r=L)
 - r1 and r2 cannot both address memory like (HL),(IX+dd),(IY+dd)
 
-# Classic 8-bit load immediate instructions
-
-| instruction  | generated (gc) |
-| ------------ | -------------- |
-| LD r,expr    | 70 \| rc nn    |
-| LD (HL),expr | 36 nn          |
-
 Notes:
 
 - to use (IX+dd) to address memory, generate DD gc(r=(HL)) dd nn
@@ -43,35 +30,29 @@ Notes:
 
 # Restart instructions
 
-| instruction | generated (gc)  | notes                 |
-| ----------- | --------------- | --------------------- |
-| RST n       | C7 \| (rc << 1) | n is an enum (n += 8) |
+| instruction | generated (gc)  |
+| ----------- | --------------- |
+| RST n       | x=3 y=n/8 z=7   |
 
 # I/O instructions
 
 | instruction | generated (gc)     |
 | ----------- | ------------------ |
-| IN r#,(C)   | ED 40 \| (rc << 3) |
-| OUT (C),r#  | ED 41 \| (rc << 3) |
+| IN r#,(C)   | ED 40 \| y=rc      |
+| OUT (C),r#  | ED 41 \| y=rc      |
 
 # Z80 8-bit shift and bit instructions
 
 | instruction | generated (gc)         |
 | ----------- | ---------------------- |
-| RLC r       | CB 00 \| rc            |
-| RRC r       | CB 08 \| rc            |
-| RL r        | CB 10 \| rc            |
-| RR r        | CB 18 \| rc            |
-| SLA r       | CB 20 \| rc            |
-| SRA r       | CB 28 \| rc            |
-| SLL r       | CB 30 \| rc            |
-| SRL r       | CB 38 \| rc            |
-| BIT n,r     | CB 40 \| (b << 3)\ | rc |
-| RES n,r     | CB 80 \| (b << 3)\ | rc |
-| SET n,r     | CB C0 \| (b << 3)\ | rc |
+| rot r       | CB 00 \| x=0 y=rot z=rc |
+| BIT n,r     | CB 40 \| x=1 y=b z=rc        |
+| RES n,r     | CB 80 \| x=2 y=b z=rc        |
+| SET n,r     | CB C0 \| x=3 y=b z=rc        |
 
 Note:
 
+rot is an enum
 0: RLC 1: RRC 2: RL 3: RR 4: SLA 5: SRA 6: SLL 7: SRL 
 
 Notes:
@@ -83,8 +64,8 @@ Notes:
 
 | instruction | generated (gc)  |
 | ----------- | --------------- |
-| ADC HL,rp   | 4A \| (rc << 4) |
-| SBC HL,rp   | 42 \| (rc << 4) |
+| ADC HL,rp   | 42 \| q=1 p=rc  |
+| SBC HL,rp   | 42 \| q=0 p=rc  |
 
 | instruction   | generated (gc)        |
 | ------------- | --------------------- |
@@ -184,30 +165,30 @@ Notes:
 
 | instruction | generated (gc) |
 | ----------- | -------------- |
-| CCF         | 3F             |
-| CPL         | 2F             |
-| DAA         | 27             |
-| DI          | F3             |
-| EI          | FB             |
-| HALT        | 76             |
 | NOP         | 00             |
 | RLCA        | 07             |
+| DAA         | 27             |
+| CPL         | 2F             |
 | SCF         | 37             |
+| CCF         | 3F             |
+| HALT        | 76             |
+| DI          | F3             |
+| EI          | FB             |
 
 # Unsorted 2
 
 | instruction | generated (gc) |
 | ----------- | -------------- |
-| EXX         | ED D9          |
-| NEG         | ED 44          |
-| RET         | ED C9          |
-| RETI        | ED 4D          |
-| RETN        | ED 45          |
-| RLA         | ED 17          |
-| RLD         | ED 6F          |
-| RRA         | ED 1F          |
 | RRCA        | ED 0F          |
+| RLA         | ED 17          |
+| RRA         | ED 1F          |
 | RRD         | ED 67          |
+| RLD         | ED 6F          |
+| NEG         | ED 44          |
+| RETN        | ED 45          |
+| RETI        | ED 4D          |
+| RET         | ED C9          |
+| EXX         | ED D9          |
 
 ---
 
@@ -220,6 +201,13 @@ Notes:
 - nn nn: 16-bit data
 - dd: 8-bit displacement
 
+# Bit naming in opcode
+
+7   6   5   4   3   2   1   0 
+x   x   y   y   y   z   z   z
+        p   p   q
+            a   a       b   b
+            
 ## Register mapping
 
 | r$       | rc  |
