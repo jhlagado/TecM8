@@ -137,19 +137,50 @@ statementList:
 ; *****************************************************************************
 
 statement:
+    ; setOpcode null
+    ; setOperand1 null
+    ; setOperand2 null
     cp LABEL_                  ; Check if it's a label
     jr nz, statement10         ; If not, jump to statement10
-    ; call addLabel           ; Add label to symbol table
-statement10:
+    ; call addLabel            ; Add label to symbol table
     call nextToken             ; Get the next token
+statement10:
     cp OPCODE_                 ; Check if it's an opcode
-    jr nz, statement1          ; If not, jump to statement1
-    ; jp parseInstruction     ; Jump to parseInstruction routine
+    jr nz, statement1          
+    ; call instruction      ; Jump to parseInstruction routine
+    ; call nextToken
+    ; jr statement2
 statement1:
     cp DIRECT_                 ; Check if it's a directive
-    ret nz                     ; If not, return
-    ; jp parseDirective        ; Jump to parseDirective routine
+    jr nz, statement2          
+    ; jp directive        ; Jump to parseDirective routine
+    ; call nextToken
+statement2:
+    cp NEWLN_
+    ret z
+    cp EOF_
+    ret z
+    ; throw error, expected NEWLN or EOF
     ret
+
+instruction:
+    ; check if Opcode has been set
+    ; setOpcode a
+    call nextToken
+    cp NEWLN_
+    jr z,instruction1
+    cp EOF_
+    jr z,instruction2
+instruction1:
+    call pushBackToken
+instruction2:
+    call firstOperand
+    call nextToken
+    cp COMMA_
+    call nextToken
+    call secondOperand
+
+directive:    
 
 ; nextToken is a lexer function that reads characters from the input and classifies 
 ; them into different token types. It handles whitespace, end of input, newlines, 
@@ -214,8 +245,7 @@ nextToken4:
     call nextChar               ; Get the next character in the comment
     cp " "+1                    ; Loop until the next control character
     jr nc, nextToken4
-    ld a, COMMENT_              ; Return with COMMENT token
-    ret
+    ret                         ; return with control char
 
 nextToken5:
     cp "_"                      ; Is it an identifier?

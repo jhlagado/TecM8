@@ -2,18 +2,22 @@
 
 | instruction | generated (gc)          |
 | ----------- | ----------------------- |
-| ADC A,r     | 88 \| rc                |
-| ADD A,r     | 80 \| rc                |
-| AND r       | A0 \| rc                |
-| CP r        | 88 \| rc                |
-| DEC r       | 05 \| (rc << 3)         |
-| INC r       | 04 \| (rc << 3)         |
 | LD r1,r2    | 40 \| (rc1 << 3) \| rc2 |
-| XOR r       | A8 \| rc                |
-| RL r        | 10 \| rc                |
-| SBC A,r     | 98 \| rc                |
+| INC r       | 04 \| (rc << 3)         |
+| DEC r       | 05 \| (rc << 3)         |
+
+# Classic 8-bit ALU instructions
+
+| instruction | generated (gc)          |
+| ----------- | ----------------------- |
+| ADD A,r     | 80 \| rc                |
+| ADC A,r     | 88 \| rc                |
 | SUB r       | 90 \| rc                |
+| SBC A,r     | 98 \| rc                |
+| AND r       | A0 \| rc                |
+| XOR r       | A8 \| rc                |
 | OR r        | B0 \| rc                |
+| CP r        | 88 \| rc                |
 
 Notes:
 
@@ -56,13 +60,19 @@ Notes:
 | ----------- | ---------------------- |
 | RLC r       | CB 00 \| rc            |
 | RRC r       | CB 08 \| rc            |
+| RL r        | CB 10 \| rc            |
 | RR r        | CB 18 \| rc            |
 | SLA r       | CB 20 \| rc            |
 | SRA r       | CB 28 \| rc            |
+| SLL r       | CB 30 \| rc            |
 | SRL r       | CB 38 \| rc            |
 | BIT n,r     | CB 40 \| (b << 3)\ | rc |
 | RES n,r     | CB 80 \| (b << 3)\ | rc |
 | SET n,r     | CB C0 \| (b << 3)\ | rc |
+
+Note:
+
+0: RLC 1: RRC 2: RL 3: RR 4: SLA 5: SRA 6: SLL 7: SRL 
 
 Notes:
 
@@ -106,8 +116,8 @@ Notes:
 | instruction   | generated (gc)      |
 | ------------- | ------------------- |
 | RET f         | C0 \| (fc << 3)       |
-| CALL f,(expr) | C4 \| (fc << 3) nn nn |
 | JP f,(expr)   | C2 \| (fc << 3) nn nn |
+| CALL f,(expr) | C4 \| (fc << 3) nn nn |
 | JR f#,(expr)  | 20 \| (fc << 4) nn    |
 
 # Special handling
@@ -145,45 +155,59 @@ Notes:
 | IM 1        | ED 56          |            |
 | IM 2        | ED 5E          |            |
 
-# Unsorted
+# Block
+
+| instruction | generated (gc) |
+| ----------- | -------------- |
+| LDI         | ED A0          | 
+| CPI         | ED A1          |
+| INI         | ED A2          |
+| OUTI        | ED A3          |
+| LDD         | ED A8          |
+| CPD         | ED A9          |
+| IND         | ED AA          |
+| OUTD        | ED AB          |
+| LDIR        | ED B0          |
+| CPIR        | ED B1          |
+| INIR        | ED B2          |
+| OTIR        | ED B3          |
+| LDDR        | ED B8          |
+| CPDR        | ED B9          |
+| INDR        | ED BA          |
+| OTDR        | ED BB          |
+
+Notes:
+- 0:LD 1:CP 2: IN 3: OUT/OT
+- 0:I  1:D  2: IR 3: ID
+
+# Unsorted 1
 
 | instruction | generated (gc) |
 | ----------- | -------------- |
 | CCF         | 3F             |
-| CPD         | ED A9          |
-| CPDR        | ED B9          |
-| CPI         | ED A1          |
-| CPIR        | ED B1          |
 | CPL         | 2F             |
 | DAA         | 27             |
 | DI          | F3             |
 | EI          | FB             |
-| EXX         | ED D9          |
 | HALT        | 76             |
-| IND         | ED AA          |
-| INDR        | ED BA          |
-| INI         | ED A2          |
-| INIR        | ED B2          |
-| LDD         | ED A8          |
-| LDDR        | ED B8          |
-| LDI         | ED A0          |
-| LDIR        | ED B0          |
-| NEG         | ED 44          |
 | NOP         | 00             |
-| OTDR        | ED BB          |
-| OTIR        | ED B3          |
-| OUTD        | ED AB          |
-| OUTI        | ED A3          |
+| RLCA        | 07             |
+| SCF         | 37             |
+
+# Unsorted 2
+
+| instruction | generated (gc) |
+| ----------- | -------------- |
+| EXX         | ED D9          |
+| NEG         | ED 44          |
 | RET         | ED C9          |
 | RETI        | ED 4D          |
 | RETN        | ED 45          |
 | RLA         | ED 17          |
-| RLCA        | 07             |
 | RLD         | ED 6F          |
 | RRA         | ED 1F          |
 | RRCA        | ED 0F          |
 | RRD         | ED 67          |
-| SCF         | 37             |
 
 ---
 
