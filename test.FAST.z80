@@ -1,8 +1,6 @@
     .engine mycomputer
 
     .include "constants.asm"
-    .include "test.fast.mac.asm"
-    
     .include "IOSerial.asm"
     
     JP testsStart
@@ -12,11 +10,11 @@
     .include "ram.asm"
     
     .org $4000
+    .include "test.fast.mac.asm"
 
 testsStart:
-
     test "1", 1
     
-    print "Done!"
+    println "Done!"
     HALT
     

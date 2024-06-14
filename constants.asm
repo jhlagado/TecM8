@@ -4,8 +4,10 @@ ROMSIZE     .EQU $0800
 RAMSIZE     .EQU $0800
 
 NO_MATCH    .equ    -1
+CTRL_C      .equ    3
 CTRL_H      .equ    8
-BUFFER_SIZE  equ 80
+BUFFER_SIZE  equ    80
+EOF         .equ    -1
 
 tokens:
 

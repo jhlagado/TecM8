@@ -21,7 +21,7 @@
 ; Routine: start
 ; 
 ; Purpose:
-;    Entry point of TecM8. Initializes the stack pointer, calls the initialization
+;    Entry point of TecM8. Initializes the STACK pointer, calls the initialization
 ;    routine, prints TecM8 version information, and jumps to the parsing routine.
 ; 
 ; Inputs:
@@ -35,7 +35,7 @@
 ; *****************************************************************************
 
 start:
-    ld sp, STACK        ; Initialize stack pointer
+    ld sp, STACK        ; Initialize STACK pointer
     call init           ; Call initialization routine
     call print          ; Print TecM8 version information
     .pstr "TecM8 0.0\r\n"
@@ -60,15 +60,17 @@ start:
 init:
     xor a               ; Clear A register
     ld (vToken), a      ; Initialize vToken with NUL_ token
-    ld (vBufferPos), a  ; Initialize buffer position
-    ld hl, assembly     ; Load assembly pointer
+    ld (vBufferPos), a  ; Initialize BUFFER position
+    ld hl, BUFFER       ; Load BUFFER pointer
+    ld (vBuffer), hl    ; Store in vBuffer
+    ld hl, ASSEMBLY     ; Load ASSEMBLY pointer
     ld (vAsmPtr), hl    ; Store in vAsmPtr
-    ld hl, strings      ; Load strings pointer
+    ld hl, STRINGS      ; Load STRINGS pointer
     ld (vStrPtr), hl    ; Store in vStrPtr
     ld (vTokenVal), hl  ; Initialize token value pointer
-    ld hl, symbols      ; Load symbols pointer
+    ld hl, SYMBOLS      ; Load SYMBOLS pointer
     ld (vSymPtr), hl    ; Store in vSymPtr
-    ld hl, exprs        ; Load expressions pointer
+    ld hl, EXPRS        ; Load expressions pointer
     ld (vExprPtr), hl   ; Store in vExprPtr
     ret                 ; Return
 
@@ -187,7 +189,7 @@ directive:
 
 ; nextToken is a lexer function that reads characters from the input and classifies 
 ; them into different token types. It handles whitespace, end of input, newlines, 
-; comments, identifiers, labels, directives, hexadecimal numbers, and other symbols.
+; comments, identifiers, labels, directives, hexadecimal numbers, and other SYMBOLS.
 
 ; Input: None
 
@@ -216,12 +218,12 @@ directive:
 ; *****************************************************************************
 
 nextToken:
-    bit 7, (vToken)             ; Check the high bit of the pushback buffer
+    bit 7, (vToken)             ; Check the high bit of the pushback BUFFER
     jp z, nextToken0            ; If high bit clear, nothing pushed back 
     ld a, (vToken)              ; If high bit set, load the pushed back token type into A
     ld hl, (vTokenVal)          ; and token value into HL
     res 7, a                    ; Clear the high bit
-    ld (vToken), a              ; Store the character back in the buffer
+    ld (vToken), a              ; Store the character back in the BUFFER
     ret                         ; Return with the pushed back character in A
 
 nextToken0:
@@ -229,17 +231,24 @@ nextToken0:
 
 nextToken1:
     call nextChar               ; Get the next character
-    call isSpace                ; Check if it's a space
+    cp " "                      ; is it space? 
     jr z, nextToken1            ; If yes, skip it and get the next character
     or a                        ; Is it null (end of input)?
+    jr z, nextToken1a            
+    cp CTRL_C                   ; end of text
     jr nz, nextToken2           ; If not, continue to the next check
+nextToken1a:
     ld a, EOF_                  ; If yes, return with EOF token
     ret
 
 nextToken2:
-    cp "\n"                     ; Is it a newline?
+    cp $5C                      ; Is it a statement separator? "\"
     jr nz, nextToken3           ; If not, continue to the next check
-    ld a, EOF_                  ; If yes, return with EOF token
+    cp ":"                      ; Is it a statement separator? ":"
+    jr nz, nextToken3           ; If not, continue to the next check
+    cp "\n"                     ; Is it a control char
+    jr nc, nextToken3           ; If not, continue to the next check
+    ld a, NEWLN_                ; If yes, return with NEWLIN token
     ret                         ; Return with newline token
 
 nextToken3:
@@ -261,7 +270,6 @@ nextToken5:
 
 nextToken6:
     call ident                  ; Parse the identifier
-    call nextChar               ; Get the next character
     cp ":"                      ; Is it a label?
     jr nz, nextToken7           ; If not, continue to the next check
     ld a, LABEL_                ; If yes, return with LABEL token
@@ -313,9 +321,9 @@ nextToken13:
     cp "$"                      ; Is it a hexadecimal number?
     jr nz, nextToken14          ; If not, continue to the next check
     call nextChar               ; Get the next character
-    call isSpace                ; Check if it's the assembly pointer
+    call isSpace                ; Check if it's the ASSEMBLY pointer
     call rewindChar             ; Push back the character (flags unaffected)
-    ret z                       ; Return with the assembly pointer token
+    ret z                       ; Return with the ASSEMBLY pointer token
     call number_hex             ; Process hexadecimal number
     jr nextToken16
 
@@ -379,7 +387,7 @@ searchOpcode:
 ; Routine: pushBackToken
 ; 
 ; Purpose:
-;    Pushes back a token into the pushback buffer to allow the token to be
+;    Pushes back a token into the pushback BUFFER to allow the token to be
 ;    re-read by the nextToken routine.
 ; 
 ; Inputs:
@@ -406,45 +414,43 @@ pushBackToken:
 ; Purpose:
 ;    Reads characters from the input stream until a charcter which is not an
 ;    an underscore or an alphanumeric character is encountered. Writes the chars 
-;    to a Pascal string and updates the top of the strings heap pointer.
+;    to a Pascal string and updates the top of the STRINGS heap pointer.
 ;    It also calculates the length of the string and stores it at the beginning
 ;    of the string.
 ; 
 ; Inputs:
 ;    A - Current character read from the input stream
-;    vStrPtr - Address of the top of strings heap pointer
+;    vStrPtr - Address of the top of STRINGS heap pointer
 ; 
 ; Outputs:
-;    None
+;    A - last character read from the input stream
 ; 
 ; Registers Destroyed:
-;    A, DE, HL
+;    DE, HL
 ; *****************************************************************************
 
 ident:
-    ld hl, (vStrPtr)        ; Load the address of the top of strings heap
-    ld de, hl               ; Copy it to DE (DE = HL = top of strings heap)
+    ld hl, (vStrPtr)        ; Load the address of the top of STRINGS heap
+    ld de, hl               ; Copy it to DE (DE = HL = top of STRINGS heap)
     inc hl                  ; Move to the next byte to skip the length byte
 ident1:
-    ld (hl), a              ; Write the current character to the string buffer
-    inc hl                  ; Move to the next position in the buffer
+    ld (hl), a              ; Write the current character to the string BUFFER
+    inc hl                  ; Move to the next position in the BUFFER
     call nextChar           ; Get the next character from the input stream
     cp "_"                  ; Compare with underscore character
     jr z, ident2            ; If underscore, jump to ident2
     call isAlphanum         ; Check if the character is alphanumeric
     jr nc, ident3           ; If not alphanumeric, jump to ident3
 ident2:
-    ld (hl), a              ; Write the current character to the string buffer
-    inc hl                  ; Move to the next position in the buffer
+    ld (hl), a              ; Write the current character to the string BUFFER
+    inc hl                  ; Move to the next position in the BUFFER
     jr ident1               ; Repeat the process
 ident3:
-    call rewindChar         ; Rewind the input stream by one character
-    ld (vStrPtr), hl        ; Update the top of strings heap pointer
-    or a                    ; Clear A register
+    ld (vStrPtr), hl        ; Update the top of STRINGS heap pointer
+    or a                    ; Clear carry
     sbc hl, de              ; Calculate the length of the string (HL = length, DE = string)
     ex de, hl               ; Swap DE and HL (E = length, HL = string)
-    ld (hl), e              ; Store the length at the beginning of the string buffer
-    ld a, e                 ; Load the length into A
+    ld (hl), e              ; Store the length at the beginning of the string BUFFER
     ret                     
 
 ; *****************************************************************************
@@ -467,13 +473,13 @@ ident3:
 ; *****************************************************************************
 
 expr:
-    ld hl, (vStrPtr)        ; Load the address of the top of strings heap
-    ld de, hl               ; Copy it to DE (DE = HL = top of strings heap)
+    ld hl, (vStrPtr)        ; Load the address of the top of STRINGS heap
+    ld de, hl               ; Copy it to DE (DE = HL = top of STRINGS heap)
     inc hl                  ; Move to the next byte to skip the length byte
     ld c, 1                 ; Initialize parenthesis count to 1
 expr1:
-    ld (hl), a              ; Write the current character to the string buffer
-    inc hl                  ; Move to the next position in the buffer
+    ld (hl), a              ; Write the current character to the string BUFFER
+    inc hl                  ; Move to the next position in the BUFFER
     call nextChar           ; Get the next character from the input stream
     cp '('                  ; Compare with left parenthesis character
     jr z, expr2             ; If left parenthesis, increase count
@@ -501,11 +507,11 @@ expr4:
     jr nz, expr1            ; If not zero, continue collecting
 expr5:
     call rewindChar         ; Rewind the input stream by one character
-    ld (vStrPtr), hl        ; Update the top of strings heap pointer
+    ld (vStrPtr), hl        ; Update the top of STRINGS heap pointer
     or a                    ; Clear A register
     sbc hl, de              ; Calculate the length of the string (HL = length, DE = string)
     ex de, hl               ; Swap DE and HL (E = length, HL = string)
-    ld (hl), e              ; Store the length at the beginning of the string buffer
+    ld (hl), e              ; Store the length at the beginning of the string BUFFER
     ld a, e                 ; Load the length into A
     ret                    
 
@@ -749,11 +755,11 @@ decimal1:
 ; Routine: searchStr
 ; 
 ; Purpose:
-;    Search through a list of Pascal strings for a match.
+;    Search through a list of Pascal STRINGS for a match.
 ; 
 ; Inputs:
 ;    HL - Points to the string to search for.
-;    DE - Points to the start of the list of strings.
+;    DE - Points to the start of the list of STRINGS.
 ; 
 ; Outputs:
 ;    CF - True if match, false otherwise.
@@ -815,71 +821,83 @@ searchStrNext:
 ; Routine: nextChar
 ; 
 ; Purpose:
-;    Fetches the next character from the buffer. If the buffer is empty or 
-;    contains a null character (0), it refills the buffer by calling nextLine.
+;    Fetches the next character from the BUFFER. If the BUFFER is empty or 
+;    contains a null character (0), it refills the BUFFER by calling nextLine.
 ; 
 ; Inputs:
 ;    None
 ; 
 ; Outputs:
-;    A - The next character from the buffer
+;    A - The next character from the BUFFER
 ; 
 ; Registers Destroyed:
 ;    A, D, E, HL
 ; *****************************************************************************
 
 nextChar:
-    ld hl, vBufferPos          ; Load the offset of buffer position variable
-    ld a, (hl)                 ; Load the current position offset in the buffer into A
-    cp BUFFER_SIZE             ; Compare with buffer size
-    jp z, nextLine             ; Jump to nextLine if end of buffer
-    ld e, a                    ; Copy buffer position offset to E
-    ld d, msb(buffer)          ; Load the MSB of the buffer's address into D
-    ld a, (de)                 ; Load the character at the current buffer position into A
-    or a                       ; Check if the character is 0 (end of line)
-    jr z, nextLine             ; Jump to nextLine if character is 0
-    inc (hl)                   ; Increment the buffer position offset
-    ret                        ; Return with the character in A
+    ld hl, vBufferPos           ; Load the offset of BUFFER position variable
+    ld a, (hl)                  ; Load the current position offset in the BUFFER into A
+    cp BUFFER_SIZE              ; Compare with BUFFER size
+    jp z, nextLine              ; Jump to nextLine if end of BUFFER
+    ld de, (vBuffer)               ; Load the MSB of the BUFFER's address into D
+    add a,e                     ; de += a
+    ld e,a
+    ld a,0
+    adc a,d
+    ld d,a
+    ld a, (de)                  ; Load the character at the current BUFFER position into A
+    or a                        ; Check if the character is 0 (end of line)
+    jr z, nextLine              ; Jump to nextLine if character is 0
+    inc (hl)                    ; Increment the BUFFER position offset
+    cp CTRL_C                   ; Ctrl-C will break the parser loop
+    jr nz, nextChar1
+    ld a, EOF
+    ret
+nextChar1:
+    cp "\t"                     ; If char is tab make it space for simplificity
+    ret nz
+    ld a, " "
+    ret                         ; Return with the character in A
 
 ; *****************************************************************************
 ; Routine: nextLine
 ; 
 ; Purpose:
-;    Refills the buffer by repeatedly calling getchar to fetch new characters
-;    and stores them in the buffer. Stops when the buffer is full or a 
+;    Refills the BUFFER by repeatedly calling getchar to fetch new characters
+;    and stores them in the BUFFER. Stops when the BUFFER is full or a 
 ;    non-printable character is encountered.
 ; 
 ; Inputs:
 ;    None
 ; 
 ; Outputs:
-;    A - The first character in the refilled buffer
+;    A - The first character in the refilled BUFFER
 ; 
 ; Registers Destroyed:
 ;    A, B, HL
 ; *****************************************************************************
 
 nextLine:
-    ld hl, buffer               ; Start of the buffer
+    ld hl, (vBuffer)            ; Start of the BUFFER
     ld b, BUFFER_SIZE           ; Number of bytes to fill
 nextLine1:
     call getchar                ; Get a character from getchar
-    ld (hl), a                  ; Store it in the buffer
-    inc hl                      ; Move to the next position in the buffer
+    ld (hl), a                  ; Store it in the BUFFER
+    inc hl                      ; Move to the next position in the BUFFER
     cp " "                      ; Check if the character is a space
     jr c, nextLine2             ; If less than space (non-printable), skip djnz
     djnz nextLine1              ; Repeat until B decrements to 0
 nextLine2:
     xor a                       ; Clear A register
-    ld (vBufferPos), a          ; Reset buffer position to 0
+    ld (vBufferPos), a          ; Reset BUFFER position to 0
     jr nextChar                 ; Jump back to nextChar to return the first char
 
 ; *****************************************************************************
 ; Routine: rewindChar
 ; 
 ; Purpose:
-;    Rewinds the buffer position by one character, effectively pushing back the
-;    buffer position by one character in the input stream.
+;    Rewinds the BUFFER position by one character, effectively pushing back the
+;    BUFFER position by one character in the input stream.
 ; 
 ; Inputs:
 ;    None
@@ -892,11 +910,11 @@ nextLine2:
 ; *****************************************************************************
 
 rewindChar:
-    ld hl, vBufferPos     ; Load the address of buffer position variable
-    ld a, (hl)            ; Load the current position in the buffer into A
-    or a                  ; Check if the buffer position is zero
+    ld hl, vBufferPos     ; Load the address of BUFFER position variable
+    ld a, (hl)            ; Load the current position in the BUFFER into A
+    or a                  ; Check if the BUFFER position is zero
     ret z                 ; If zero, nothing to push back, return
-    dec (hl)              ; Decrement the buffer position
+    dec (hl)              ; Decrement the BUFFER position
     ret                   ; Return
 
 prompt:                            
