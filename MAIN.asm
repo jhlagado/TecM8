@@ -61,8 +61,7 @@ init:
     xor a               ; Clear A register
     ld (vToken), a      ; Initialize vToken with NUL_ token
     ld (vBufferPos), a  ; Initialize BUFFER position
-    ld hl, BUFFER       ; Load BUFFER pointer
-    ld (vBuffer), hl    ; Store in vBuffer
+    ld (BUFFER),a       ; put null into first byte of buffer
     ld hl, ASSEMBLY     ; Load ASSEMBLY pointer
     ld (vAsmPtr), hl    ; Store in vAsmPtr
     ld hl, STRINGS      ; Load STRINGS pointer
@@ -233,7 +232,7 @@ nextToken1:
     call nextChar               ; Get the next character
     cp " "                      ; is it space? 
     jr z, nextToken1            ; If yes, skip it and get the next character
-    or a                        ; Is it null (end of input)?
+    cp EOF                      ; Is it null (end of input)?
     jr z, nextToken1a            
     cp CTRL_C                   ; end of text
     jr nz, nextToken2           ; If not, continue to the next check
@@ -265,7 +264,7 @@ nextToken4:
 nextToken5:
     cp "_"                      ; Is it an identifier?
     jr z, nextToken6            ; If yes, continue to the next check
-    call isAlphaNum             ; If not, check if it's alphanumeric
+    call isAlpha                ; If not, check if it's alphabetic
     jr nc, nextToken13          ; If not, continue to the next check
 
 nextToken6:
@@ -776,28 +775,28 @@ searchStr:
     xor a                 ; Initialize index counter, ZF = true, CF = false
     ex af, af'            ; Exchange AF with AF prime
 
-searchStrLoop:
+searchStr1:
     ld a, (de)            ; Load length of search string
     ld b, a               ; Copy length to B for looping
     push de               ; Store search string
     push hl               ; Store current string
     cp (hl)               ; Compare with length of current string
-    jr nz, searchStrNext  ; If lengths are not equal, move to next string
+    jr nz, searchStr3     ; If lengths are not equal, move to next string
     inc de                ; Move to start of search string
     inc hl                ; Move to start of current string
-searchStrCharLoop:
+searchStr2:
     ld a, (de)            ; Load next character from search string
     cp (hl)               ; Compare with next character in current string
-    jr nz, searchStrNext  ; If characters are not equal, move to next string
+    jr nz, searchStr3     ; If characters are not equal, move to next string
     inc de                ; Move to next character in search string
     inc hl                ; Move to next character in current string
-    djnz searchStrCharLoop ; Loop until all characters compared
+    djnz searchStr2       ; Loop until all characters compared
     pop hl                ; Discard current string
     pop hl                ; HL = search string
     ex af, af'            ; Load index of match
     ccf                   ; If match, CF = true
     ret
-searchStrNext:
+searchStr3:
     pop hl                ; Restore current string
     pop de                ; Restore search string
     ld a, (hl)            ; Load length of current string
@@ -812,7 +811,7 @@ searchStrNext:
     ex af, af'
     ld a, (hl)            ; A = length of next string
     or a                  ; If A != 0, continue searching
-    jr nz, searchStrLoop
+    jr nz, searchStr1
     dec a                 ; A = NO_MATCH (i.e., -1), ZF = false
     ccf                   ; CF = false
     ret
@@ -839,25 +838,31 @@ nextChar:
     ld a, (hl)                  ; Load the current position offset in the BUFFER into A
     cp BUFFER_SIZE              ; Compare with BUFFER size
     jp z, nextLine              ; Jump to nextLine if end of BUFFER
-    ld de, (vBuffer)               ; Load the MSB of the BUFFER's address into D
+    ld de, BUFFER               ; Load the MSB of the BUFFER's address into D
     add a,e                     ; de += a
     ld e,a
     ld a,0
     adc a,d
     ld d,a
     ld a, (de)                  ; Load the character at the current BUFFER position into A
-    or a                        ; Check if the character is 0 (end of line)
-    jr z, nextLine              ; Jump to nextLine if character is 0
     inc (hl)                    ; Increment the BUFFER position offset
+    or a                        ; Jump to nextLine if null
+    jr c, nextLine              
+    cp "\n"
+    jr c, nextLine              ; Jump to nextLine if new line
     cp CTRL_C                   ; Ctrl-C will break the parser loop
-    jr nz, nextChar1
-    ld a, EOF
-    ret
+    jr z, nextChar1
+    cp "\r"                     ; If char is \r or \t make it space for simplificity
+    jr z, nextChar2
+    cp "\t"                     
+    jr z, nextChar2
+    ret                         ; return A unchanged
 nextChar1:
-    cp "\t"                     ; If char is tab make it space for simplificity
-    ret nz
+    ld a, EOF
+    ret                         ; A = EOF
+nextChar2:
     ld a, " "
-    ret                         ; Return with the character in A
+    ret                         ; A = " "
 
 ; *****************************************************************************
 ; Routine: nextLine
@@ -878,16 +883,25 @@ nextChar1:
 ; *****************************************************************************
 
 nextLine:
-    ld hl, (vBuffer)            ; Start of the BUFFER
+    ld hl, BUFFER               ; Start of the BUFFER
     ld b, BUFFER_SIZE           ; Number of bytes to fill
 nextLine1:
     call getchar                ; Get a character from getchar
+    cp "\t"                     ; replace tab with space
+    jr nz,nextLine2
+    ld a, " "
+    jr nextLine3
+nextLine2:    
+    cp " "                      ; replace control chars like \r \n etc with null 
+    jr nc, nextLine3
+    xor a
+nextLine3:
     ld (hl), a                  ; Store it in the BUFFER
     inc hl                      ; Move to the next position in the BUFFER
-    cp " "                      ; Check if the character is a space
-    jr c, nextLine2             ; If less than space (non-printable), skip djnz
+    or a                        ; if character is null bfeak loop
+    jr z, nextLine4             
     djnz nextLine1              ; Repeat until B decrements to 0
-nextLine2:
+nextLine4:
     xor a                       ; Clear A register
     ld (vBufferPos), a          ; Reset BUFFER position to 0
     jr nextChar                 ; Jump back to nextChar to return the first char

@@ -1,20 +1,28 @@
-    .engine mycomputer
+    ; .engine mycomputer
 
     .include "constants.asm"
     .include "IOSerial.asm"
     
-    JP testsStart
+    jp testsStart
     
     .include "MAIN.asm"
     .include "data.asm"
     .include "ram.asm"
     
     .org $4000
-    .include "test.fast.mac.asm"
 
 testsStart:
-    test "1", 1
+    ld sp,STACK
+
+    call parseStr
+    ; .db "label1: LD A, 42;comment\r\n"
+    .db "halt",EOF
+
+    halt    
+
+    ; test "1", 1
     
     println "Done!"
-    HALT
+    halt
     
+    .include "test.fast.mac.asm"

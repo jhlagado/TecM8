@@ -27,10 +27,18 @@ expect%%M:
 .endm
 
 .macro test,code1,val1
-    ld SP,STACK
-    call init
-    call scan
+    jr test2%%M
+test1%%M:
     .cstr code1
+test2%%M:
+    ld sp,STACK
+    call init
+    ld hl,testGetCharImpl               
+    ld (GETCVEC),hl
+    ld hl,test1%%M
+    ld (tbPtr),hl
+    call nextToken
+    call statementList
     ; expect code1,val1
 .endm
 
@@ -39,11 +47,31 @@ expect%%M:
     .cstr "\r\n",msg1,"\r\n"
 .endm
 
-scan:                           
+tbPtr:
+    dw 0                
+
+testGetCharImpl:
+    PUSH HL
+    LD HL,(tbPtr)
+    LD A,(HL)
+    INC HL
+    LD (tbPtr),HL
+    POP HL
+    RET                 ;NZ flagged if character input
+
+parseStr:                           
+    call init
+    ld hl,testGetCharImpl               
+    ld (GETCVEC),hl
     pop hl
-    ld (vBuffer),hl
-    call statement
-    ld hl,(vBuffer)
+    push hl
+    ld (tbPtr),hl
+    call statementList
+    pop hl
+    ld a,(vBufferPos)
+    ld e,a
+    ld d,0
+    add hl,de
     inc hl
     jp (hl)		                    ; continue after string	
 

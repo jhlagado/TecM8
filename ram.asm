@@ -24,7 +24,6 @@ vTemp2:     ds 2                ; temp var 2
 vToken:     ds 1                ; BUFFER for pushed back token
 vTokenVal:  ds 2                ; BUFFER for pushed back token value
 vBufferPos: ds 2                ; pointer to char position into input BUFFER
-vBuffer:    ds 2                ; pointer to start of input BUFFER
 vAsmPtr:    ds 2                ; pointer to ASSEMBLY point
 vStrPtr:    ds 2                ; pointer to string STACK
 vSymPtr:    ds 2                ; pointer to symbol STACK
