@@ -4,5 +4,4 @@ test.*.hex
 test.*.lst
 testbed.*.hex
 testbed.*.lst
-notes.md
 *.__dbg__

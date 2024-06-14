@@ -1,12 +1,33 @@
-opcodes:
 
-.pstr "ADC"
+rot_opcodes:
+
+.pstr "RLC"
+.pstr "RRC"
+.pstr "RL"
+.pstr "RR"
+.pstr "SLA"
+.pstr "SRA"
+.pstr "SLL"
+.pstr "SRL"
+.pstr ""                    ; terminate list with a string of zero length
+
+alu_opcodes:
+
 .pstr "ADD"
+.pstr "ADC"
+.pstr "SUB"
+.pstr "SBC"
 .pstr "AND"
+.pstr "XOR"
+.pstr "OR"
+.pstr "CP"
+.pstr ""                    ; terminate list with a string of zero length
+
+gen_opcodes:
+
 .pstr "BIT"
 .pstr "CALL"
 .pstr "CCF"
-.pstr "CP"
 .pstr "CPD"
 .pstr "CPDR"
 .pstr "CPI"
@@ -36,7 +57,6 @@ opcodes:
 .pstr "LDIR"
 .pstr "NEG"
 .pstr "NOP"
-.pstr "OR"
 .pstr "OTDR"
 .pstr "OTIR"
 .pstr "OUT"
@@ -48,25 +68,15 @@ opcodes:
 .pstr "RET"
 .pstr "RETI"
 .pstr "RETN"
-.pstr "RL"
 .pstr "RLA"
-.pstr "RLC"
 .pstr "RLCA"
 .pstr "RLD"
-.pstr "RR"
 .pstr "RRA"
-.pstr "RRC"
 .pstr "RRCA"
 .pstr "RRD"
 .pstr "RST"
-.pstr "SBC"
 .pstr "SCF"
 .pstr "SET"
-.pstr "SLA"
-.pstr "SRA"
-.pstr "SRL"
-.pstr "SUB"
-.pstr "XOR"
 .pstr ""                    ; terminate list with a string of zero length
 
 registers:

@@ -180,6 +180,9 @@ instruction2:
     call nextToken
     call secondOperand
 
+firstOperand:
+secondOperand:
+
 directive:    
 
 ; nextToken is a lexer function that reads characters from the input and classifies 
@@ -223,6 +226,7 @@ nextToken:
 
 nextToken0:
     ld hl, 0                    ; Initialize HL with 0
+
 nextToken1:
     call nextChar               ; Get the next character
     call isSpace                ; Check if it's a space
@@ -235,7 +239,8 @@ nextToken1:
 nextToken2:
     cp "\n"                     ; Is it a newline?
     jr nz, nextToken3           ; If not, continue to the next check
-    ret z                       ; Return with newline token
+    ld a, EOF_                  ; If yes, return with EOF token
+    ret                         ; Return with newline token
 
 nextToken3:
     cp ";"                      ; Is it a comment?
@@ -245,7 +250,8 @@ nextToken4:
     call nextChar               ; Get the next character in the comment
     cp " "+1                    ; Loop until the next control character
     jr nc, nextToken4
-    ret                         ; return with control char
+    call rewindChar             ; Push back the character
+    jr nextToken0               ; return with control char
 
 nextToken5:
     cp "_"                      ; Is it an identifier?
@@ -264,10 +270,8 @@ nextToken6:
 nextToken7:    
     call rewindChar             ; Push back the character
     ld (vStrPtr), hl            ; Restore string heap pointer to previous location
-    ld de, opcodes              ; List of opcodes to search
-    call searchStr
+    call searchOpcode
     jr nc, nextToken8
-
     ld a, OPCODE_               ; Return with OPCODE token
     ret
 
@@ -275,7 +279,6 @@ nextToken8:
     ld de, reg_pairs            ; List of register pairs to search
     call searchStr
     jr nc, nextToken9
-
     ld a, REGPAIR_              ; Return with REGPAIR token
     ret
 
@@ -283,7 +286,6 @@ nextToken9:
     ld de, registers            ; List of registers to search
     call searchStr
     jr nc, nextToken10
-
     ld a, REG_                  ; Return with REG token
     ret
 
@@ -291,7 +293,6 @@ nextToken10:
     ld de, flags                ; List of flags to search
     call searchStr
     jr nc, nextToken11
-
     ld a, FLAG_                 ; Return with FLAG token
     ret
 
@@ -315,7 +316,7 @@ nextToken13:
     call isSpace                ; Check if it's the assembly pointer
     call rewindChar             ; Push back the character (flags unaffected)
     ret z                       ; Return with the assembly pointer token
-    call number_hex                ; Process hexadecimal number
+    call number_hex             ; Process hexadecimal number
     jr nextToken16
 
 nextToken14:    
@@ -340,6 +341,39 @@ nextToken17:
     ret z                       ; Return with the ',' token
     ld a, UNKNOWN_              ; Return with UNKNOWN token
     ret
+
+; *****************************************************************************
+; Routine: searchOpcode
+; 
+; Purpose:
+;    Searches for a matching opcode in various lists of opcodes.
+; 
+; Inputs:
+;    HL - Points to the string to search for.
+; 
+; Outputs:
+;    CF - Set if a match is found, cleared otherwise.
+;    A  - Contains the index of the matching opcode if a match is found,
+;         or the last checked index if no match is found.
+; 
+; Registers Destroyed:
+;    A, DE, F
+; *****************************************************************************
+
+searchOpcode:
+    ld de, alu_opcodes          ; Point DE to the list of ALU opcodes
+    call searchStr              ; Call searchStr to search for the string in ALU opcodes
+    ret c                       ; If carry flag is set, return (match found)
+
+    ld de, rot_opcodes          ; Point DE to the list of ROT opcodes
+    call searchStr              ; Call searchStr to search for the string in ROT opcodes
+    bit 1, a                    ; Check bit 1 of register A (flags unaffected)
+    ret c                       ; If carry flag is set, return (match found)
+
+    ld de, gen_opcodes          ; Point DE to the list of general opcodes
+    call searchStr              ; Call searchStr to search for the string in general opcodes
+    bit 5, a                    ; Check bit 5 of register A (flags unaffected)
+    ret                         ; Return (if match found or not)
 
 ; *****************************************************************************
 ; Routine: pushBackToken

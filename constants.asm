@@ -9,92 +9,100 @@ BUFFER_SIZE  equ 80
 
 tokens:
 
+COLON_      .equ    ":"
 COMMA_      .equ    ","
-COMMENT_    .equ    ";"
 DIRECT_     .equ    "D"
 DOLLAR_     .equ    "$"
 EOF_        .equ    "E"
 FLAG_       .equ    "F"
 IDENT_      .equ    "I"
 LABEL_      .equ    "L"
+LPAREN_     .equ    "("
 NEWLN_      .equ    "\n"
 NUM_        .equ    "9"
 OPCODE_     .equ    "C"
-PARCLOSE_   .equ    ")"
-PAROPEN_    .equ    "("
 REG_        .equ    "R"
 REGPAIR_    .equ    "P"
+RPAREN_     .equ    ")"
 UNKNOWN_    .equ    "U"
 
-opcode_idx:
+alu_idx:
 
-ADC_        .equ    0
-ADD_        .equ    1
-AND_        .equ    2
-BIT_        .equ    3
-CALL_       .equ    4
-CCF_        .equ    5
-CP_         .equ    6
-CPD_        .equ    7
-CPDR_       .equ    8
-CPI_        .equ    9
-CPIR_       .equ    10
-CPL_        .equ    11
-DAA_        .equ    12
-DEC_        .equ    13
-DI_         .equ    14
-DJNZ_       .equ    15
-EI_         .equ    16
-EX_         .equ    17
-EXX_        .equ    18
-HALT_       .equ    19
-IM_         .equ    20
-IN_         .equ    21
-INC_        .equ    22
-IND_        .equ    23
-INDR_       .equ    24
-INI_        .equ    25
-INIR_       .equ    26
-JP_         .equ    27
-JR_         .equ    28
-LD_         .equ    29
-LDD_        .equ    30
-LDDR_       .equ    31
-LDI_        .equ    32
-LDIR_       .equ    33
-NEG_        .equ    34
-NOP_        .equ    35
-OR_         .equ    36
-OTDR_       .equ    37
-OTIR_       .equ    38
-OUT_        .equ    39
-OUTD_       .equ    40
-OUTI_       .equ    41
-POP_        .equ    42
-PUSH_       .equ    43
-RES_        .equ    44
-RET_        .equ    45
-RETI_       .equ    46
-RETN_       .equ    47
-RL_         .equ    48
-RLA_        .equ    49
-RLC_        .equ    50
-RLCA_       .equ    51
-RLD_        .equ    52
-RR_         .equ    53
-RRA_        .equ    54
-RRC_        .equ    55
-RRCA_       .equ    56
-RRD_        .equ    57
-RST_        .equ    58
-SBC_        .equ    59
-SCF_        .equ    60
-SET_        .equ    61
-SLA_        .equ    62
-SRA_        .equ    63
-SRL_        .equ    64
-SUB_        .equ    65
-XOR_        .equ    66
+ADD_   .equ  0
+ADC_   .equ  1
+SUB_   .equ  2
+SBC_   .equ  3
+AND_   .equ  4
+XOR_   .equ  5
+OR_    .equ  6
+CP_    .equ  7
+
+rot_idx:
+
+RLC_   .equ  0 | 0x10
+RRC_   .equ  1 | 0x10
+RL_    .equ  2 | 0x10
+RR_    .equ  3 | 0x10
+SLA_   .equ  4 | 0x10
+SRA_   .equ  5 | 0x10
+SLL_   .equ  6 | 0x10
+SRL_   .equ  7 | 0x10
+
+gen_idx:
+
+; Opcode values
+BIT_   .equ  0  | 0x40
+CALL_  .equ  1  | 0x40
+CCF_   .equ  2  | 0x40
+CPD_   .equ  3  | 0x40
+CPDR_  .equ  4  | 0x40
+CPI_   .equ  5  | 0x40
+CPIR_  .equ  6  | 0x40
+CPL_   .equ  7  | 0x40
+DAA_   .equ  8  | 0x40
+DEC_   .equ  9  | 0x40
+DI_    .equ  10 | 0x40
+DJNZ_  .equ  11 | 0x40
+EI_    .equ  12 | 0x40
+EX_    .equ  13 | 0x40
+EXX_   .equ  14 | 0x40
+HALT_  .equ  15 | 0x40
+IM_    .equ  16 | 0x40
+IN_    .equ  17 | 0x40
+INC_   .equ  18 | 0x40
+IND_   .equ  19 | 0x40
+INDR_  .equ  20 | 0x40
+INI_   .equ  21 | 0x40
+INIR_  .equ  22 | 0x40
+JP_    .equ  23 | 0x40
+JR_    .equ  24 | 0x40
+LD_    .equ  25 | 0x40
+LDD_   .equ  26 | 0x40
+LDDR_  .equ  27 | 0x40
+LDI_   .equ  28 | 0x40
+LDIR_  .equ  29 | 0x40
+NEG_   .equ  30 | 0x40
+NOP_   .equ  31 | 0x40
+OTDR_  .equ  32 | 0x40
+OTIR_  .equ  33 | 0x40
+OUT_   .equ  34 | 0x40
+OUTD_  .equ  35 | 0x40
+OUTI_  .equ  36 | 0x40
+POP_   .equ  37 | 0x40
+PUSH_  .equ  38 | 0x40
+RES_   .equ  39 | 0x40
+RET_   .equ  40 | 0x40
+RETI_  .equ  41 | 0x40
+RETN_  .equ  42 | 0x40
+RLA_   .equ  43 | 0x40
+RLCA_  .equ  44 | 0x40
+RLD_   .equ  45 | 0x40
+RRA_   .equ  46 | 0x40
+RRCA_  .equ  47 | 0x40
+RRD_   .equ  48 | 0x40
+RST_   .equ  49 | 0x40
+SCF_   .equ  50 | 0x40
+SET_   .equ  51 | 0x40
 
 reg_idx:
 
