@@ -37,8 +37,8 @@
 start:
     ld sp, STACK        ; Initialize STACK pointer
     call init           ; Call initialization routine
-    call print          ; Print TecM8 version information
-    .pstr "TecM8 0.0\r\n"
+    call print         ; Print TecM8 version information
+    .cstr "TecM8 0.0\r\n"
     jp parse            ; Jump to the parsing routine
 
 ; *****************************************************************************
@@ -61,7 +61,8 @@ init:
     xor a               ; Clear A register
     ld (vToken), a      ; Initialize vToken with NUL_ token
     ld (vBufferPos), a  ; Initialize BUFFER position
-    ld (BUFFER),a       ; put null into first byte of buffer
+    ld a, "\n"          ; put new line into first char of buffer
+    ld (BUFFER),a       ; 
     ld hl, ASSEMBLY     ; Load ASSEMBLY pointer
     ld (vAsmPtr), hl    ; Store in vAsmPtr
     ld hl, STRINGS      ; Load STRINGS pointer
@@ -93,7 +94,7 @@ init:
 parse:
     call statementList         ; Parse the input program
     call print                 ; Print completion message
-    .pstr "Parsing completed successfully."
+    .cstr "Parsing completed successfully."
     halt                       ; Halt the system
 
 ; *****************************************************************************
@@ -776,26 +777,16 @@ searchStr:
     ex af, af'            ; Exchange AF with AF prime
 
 searchStr1:
-    ld a, (de)            ; Load length of search string
-    ld b, a               ; Copy length to B for looping
     push de               ; Store search string
     push hl               ; Store current string
-    cp (hl)               ; Compare with length of current string
-    jr nz, searchStr3     ; If lengths are not equal, move to next string
-    inc de                ; Move to start of search string
-    inc hl                ; Move to start of current string
-searchStr2:
-    ld a, (de)            ; Load next character from search string
-    cp (hl)               ; Compare with next character in current string
-    jr nz, searchStr3     ; If characters are not equal, move to next string
-    inc de                ; Move to next character in search string
-    inc hl                ; Move to next character in current string
-    djnz searchStr2       ; Loop until all characters compared
+    call compareStr
+    jr nz, searchStr
     pop hl                ; Discard current string
     pop hl                ; HL = search string
     ex af, af'            ; Load index of match
     ccf                   ; If match, CF = true
     ret
+
 searchStr3:
     pop hl                ; Restore current string
     pop de                ; Restore search string
@@ -815,7 +806,43 @@ searchStr3:
     dec a                 ; A = NO_MATCH (i.e., -1), ZF = false
     ccf                   ; CF = false
     ret
-    
+   
+
+; *****************************************************************************
+; Routine: compareStr
+; 
+; Purpose:
+;    Compares two Pascal strings. The comparison includes
+;    the length byte and continues until all characters are compared or a
+;    mismatch is found.
+; 
+; Inputs:
+;    DE - Points to the start of string1
+;    HL - Points to the start of string2
+; 
+; Outputs:
+;    ZF - Set if the strings are equal
+; 
+; Registers Destroyed:
+;    A, B, DE, HL
+; *****************************************************************************
+
+compareStr:
+    ld a, (de)            ; Load length of search string
+    ld b, a               ; Copy length to B for looping
+    inc b                 ; Increase to include length byte     
+
+compareStr2:
+    ld a, (de)            ; Load next character from search string
+    cp (hl)               ; Compare with next character in current string
+    ret nz                ; Return if characters are not equal
+    inc de                ; Move to next character in search string
+    inc hl                ; Move to next character in current string
+    djnz compareStr2      ; Loop until all characters compared or mismatch
+
+compareStr3:
+    ret                   ; Return with ZF set if strings are equal
+
 ; *****************************************************************************
 ; Routine: nextChar
 ; 
@@ -846,65 +873,65 @@ nextChar:
     ld d,a
     ld a, (de)                  ; Load the character at the current BUFFER position into A
     inc (hl)                    ; Increment the BUFFER position offset
-    or a                        ; Jump to nextLine if null
-    jr c, nextLine              
-    cp "\n"
-    jr c, nextLine              ; Jump to nextLine if new line
-    cp CTRL_C                   ; Ctrl-C will break the parser loop
-    jr z, nextChar1
-    cp "\r"                     ; If char is \r or \t make it space for simplificity
-    jr z, nextChar2
-    cp "\t"                     
-    jr z, nextChar2
-    ret                         ; return A unchanged
-nextChar1:
-    ld a, EOF
-    ret                         ; A = EOF
-nextChar2:
-    ld a, " "
-    ret                         ; A = " "
-
-; *****************************************************************************
-; Routine: nextLine
-; 
-; Purpose:
-;    Refills the BUFFER by repeatedly calling getchar to fetch new characters
-;    and stores them in the BUFFER. Stops when the BUFFER is full or a 
-;    non-printable character is encountered.
-; 
-; Inputs:
-;    None
-; 
-; Outputs:
-;    A - The first character in the refilled BUFFER
-; 
-; Registers Destroyed:
-;    A, B, HL
-; *****************************************************************************
+    cp "\n"                     ; if a != null return else load a new line into buffer 
+    ret nz                      
 
 nextLine:
     ld hl, BUFFER               ; Start of the BUFFER
     ld b, BUFFER_SIZE           ; Number of bytes to fill
+
 nextLine1:
     call getchar                ; Get a character from getchar
-    cp "\t"                     ; replace tab with space
-    jr nz,nextLine2
-    ld a, " "
-    jr nextLine3
-nextLine2:    
-    cp " "                      ; replace control chars like \r \n etc with null 
-    jr nc, nextLine3
-    xor a
+    cp EOF                      ; is it EOF
+    jr z, nextLine6
+    or a                        ; is it NULL?
+    jr z, nextLine2
+    cp CTRL_C                   ; is it ctrl-C ?
+    jr nz, nextLine3
+
+nextLine2:
+    ld a, EOF
+    jr nextLine6
+
 nextLine3:
-    ld (hl), a                  ; Store it in the BUFFER
+    cp "\b"                     ; Check if character is backspace
+    jr nz, nextLine4            ; If not, proceed to store the character
+    ld a, BUFFER_SIZE
+    sub b                       ; Check if at the start of the buffer
+    jr z, nextLine1             ; If at the start, ignore backspace
+    dec hl                      ; Move back in the buffer
+    inc b                       ; Adjust buffer size counter
+
+    call print                 ; Erase the character at the current cursor position
+    .cstr ESC,"[P"              ; Escape sequence for erasing character
+    jr nextLine1
+
+nextLine4:    
+    call putchar                ; Echo character to terminal
+
+    cp "\t"
+    jr nz, nextLine5             ; if a == CR or NL replace with null
+    ld a, " "
+    jr nextLine6
+
+nextLine5:
+    cp "\r"                     ; Check if character is carriage return
+    jr nz, nextLine6
+    ld a, "\n"
+
+nextLine6:
+    ld (hl), a                  ; Store the character in the BUFFER
     inc hl                      ; Move to the next position in the BUFFER
-    or a                        ; if character is null bfeak loop
-    jr z, nextLine4             
-    djnz nextLine1              ; Repeat until B decrements to 0
-nextLine4:
-    xor a                       ; Clear A register
-    ld (vBufferPos), a          ; Reset BUFFER position to 0
-    jr nextChar                 ; Jump back to nextChar to return the first char
+    cp EOF                      ; Break loop if character is end of line
+    jr z, nextLine7             
+    cp "\n"                     ; Break loop if character is end of line
+    jr z, nextLine7                           
+    djnz nextLine1              ; Repeat until BUFFER is full
+
+nextLine7:
+    ld hl, vBufferPos
+    ld (hl), 0
+    ret                 
 
 ; *****************************************************************************
 ; Routine: rewindChar
@@ -931,51 +958,149 @@ rewindChar:
     dec (hl)              ; Decrement the BUFFER position
     ret                   ; Return
 
+; *****************************************************************************
+; Routine: prompt
+; 
+; Purpose:
+;    Prints a prompt symbol ("> ") to indicate readiness for user input.
+; 
+; Inputs:
+;    None
+; 
+; Outputs:
+;    None
+; 
+; Registers Destroyed:
+;    A, HL
+; *****************************************************************************
+
 prompt:                            
-    call print
-    .pstr "\r\n> "
-    ret
+    call print                  ; Print the null-terminated string (prompt message)
+    .cstr "\r\n> "               ; Define the prompt message
+    ret                          ; Return to the caller
+
+; *****************************************************************************
+; Routine: crlf
+; 
+; Purpose:
+;    Prints a carriage return and line feed (new line) to the output.
+; 
+; Inputs:
+;    None
+; 
+; Outputs:
+;    None
+; 
+; Registers Destroyed:
+;    A, HL
+; *****************************************************************************
 
 crlf:                               
-    call print
-    .pstr "\r\n"
-    ret
+    call print                  ; Print the null-terminated string (carriage return and line feed)
+    .cstr "\r\n"                 ; Define the carriage return and line feed message
+    ret                          ; Return to the caller
+
+; *****************************************************************************
+; Routine: error
+; 
+; Purpose:
+;    Prints an error message and halts execution.
+; 
+; Inputs:
+;    (Stack) - The address of the error message to be printed
+; 
+; Outputs:
+;    None
+; 
+; Registers Destroyed:
+;    A, HL
+; *****************************************************************************
 
 error:
-    pop hl
-    call printStr
-    halt
+    pop hl                      ; Retrieve the "return" address which is the address of the error message
+    call printStr              ; Call the routine to print the null-terminated string
+    halt                        ; Halt the CPU
+
+; *****************************************************************************
+; Routine: print
+; 
+; Purpose:
+;    Prints a null-terminated string starting from the address in HL.
+; 
+; Inputs:
+;    HL - Points to the start of the string to be printed
+; 
+; Outputs:
+;    None
+; 
+; Registers Destroyed:
+;    None
+; *****************************************************************************
 
 print:                           
-    pop hl		                    ; "return" address is address of string			
-    call printStr		
-    jp (hl)		                    ; put it back	
+    ex (sp),hl                ; Swap HL with the value on the stack to preserve HL
+    call printZStr            ; Call the routine to print the null-terminated string
+    inc hl                    ; Increment HL to skip the null terminator
+    ex (sp),hl                ; Restore the original value of HL from the stack
+    ret                       ; Return to the caller
 
-; print
-;
-; Prints a Pascal string to the console.
-;
-; Input:
-;   hl: Points to the start of the Pascal string in memory. The first byte at this location should be the length of the string, followed by the string data.
-;
-; Output:
-;   hl: points to the byte after the end of the string .
-;
-; Destroyed:
-;   a, b
+; *****************************************************************************
+; Routine: printStr
+; 
+; Purpose:
+;    Prints a Pascal string stored in memory. 
+; 
+; Inputs:
+;    HL - Points to the start of the string (first byte is the length)
+; 
+; Outputs:
+;    None
+; 
+; Registers Destroyed:
+;    A, B, HL
+; *****************************************************************************
 
 printStr:
-    ld a, (hl)     ; Load the length of the string
-    or a           ; Check if A is zero
-    ret z          ; If it is, return immediately
-    inc hl         ; Move to the start of the string data
-    ld b, a        ; Copy the length to B for looping
+    ld a, (hl)                ; Load the length of the string
+    or a                      ; Check if the length is zero
+    ret z                     ; If zero, return immediately
+    inc hl                    ; Move HL to the start of the string data
+    ld b, a                   ; Copy the length to B for looping
 printStr1:
-    ld a, (hl)     ; Load the next character
-    call putchar   ; Call a routine that prints a single character
-    inc hl         ; Move to the next character
-    djnz printStr1 ; Decrement B and jump if not zero
-    ret            ; Return from the routine
+    ld a, (hl)                ; Load the next character
+    call putchar              ; Call a routine that prints a single character
+    inc hl                    ; Move to the next character
+    djnz printStr1            ; Decrement B and jump if not zero
+    ret                       ; Return from the routine
+
+; *****************************************************************************
+; Routine: printZStr
+; 
+; Purpose:
+;    Prints a null-terminated string stored in memory. 
+; 
+; Inputs:
+;    HL - Points to the start of the string to be printed
+; 
+; Outputs:
+;    None
+; 
+; Registers Destroyed:
+;    A, HL
+; *****************************************************************************
+
+printZStr:
+    jr printZStr2             ; Jump to the loop condition
+
+printZStr1:                            
+    call putchar              ; Print the current character
+    inc hl                    ; Move to the next character
+
+printZStr2:
+    ld a, (hl)                ; Load the current character
+    or a                      ; Check if the character is null
+    jr nz, printZStr1         ; If not null, continue printing
+    ret                       ; Return when null character is encountered
 
 ; *******************************************************************************
 ; *********  END OF MAIN   ******************************************************

@@ -3,12 +3,13 @@ RAMSTART    .EQU $0800
 ROMSIZE     .EQU $0800
 RAMSIZE     .EQU $0800
 
+EOF         .equ    -1
+NULL        .equ    0
 CTRL_C      .equ    3
 CTRL_H      .equ    8
 ESC         .equ    27 
-BUFFER_SIZE .equ    80
-EOF         .equ    -1
 NO_MATCH    .equ    -1
+BUFFER_SIZE .equ    $80
 
 tokens:
 

@@ -443,8 +443,10 @@ Load:
 .endif
 
 getchar:
+        PUSH HL 
         LD HL,(GETCVEC)
-        JP (HL)
+        EX (SP),HL
+        RET
 
 putchar:
         PUSH HL

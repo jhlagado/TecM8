@@ -14,15 +14,23 @@
 testsStart:
     ld sp,STACK
 
-    call parseStr
-    ; .db "label1: LD A, 42;comment\r\n"
-    .db "halt",EOF
+    call test
+    .db 0
 
-    halt    
+    call expect
+    .db 0
 
-    ; test "1", 1
+    ; call test
+    ; ; .db "label1: LD A, 42;comment\r\n"
+    ; ; .db "halt"
+    ; .db 0
+
+    ; call expect
+    ; .db 0
+
+    call print 
+    .cstr "Done!"
     
-    println "Done!"
     halt
-    
-    .include "test.fast.mac.asm"
+
+.include "test.lib.asm"
