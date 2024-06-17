@@ -1,4 +1,3 @@
-
 rot_opcodes:
 
 .pstr "RLC"
@@ -23,45 +22,56 @@ alu_opcodes:
 .pstr "CP"
 .pstr ""                    ; terminate list with a string of zero length
 
-gen_opcodes:
+bli_opcodes:
+
+.pstr "LDI"
+.pstr "CPI"
+.pstr "INI"
+.pstr "OUTI"
+.pstr "LDD"
+.pstr "CPD"
+.pstr "IND"
+.pstr "OUTD"
+.pstr "LDIR"
+.pstr "CPIR"
+.pstr "INIR"
+.pstr "OTIR"
+.pstr "LDDR"
+.pstr "CPDR"
+.pstr "INDR"
+.pstr "OTDR"
+.pstr ""                    ; terminate list with a string of zero length
+
+gen1_opcodes:
+
+.pstr "CCF"
+.pstr "CPL"
+.pstr "DAA"
+.pstr "DI"
+.pstr "EI"
+.pstr "HALT"
+.pstr "NOP"
+.pstr "RLCA"
+.pstr "RST"
+.pstr "SCF"
+.pstr ""                    ; terminate list with a string of zero length
+
+gen2_opcodes:
 
 .pstr "BIT"
 .pstr "CALL"
-.pstr "CCF"
-.pstr "CPD"
-.pstr "CPDR"
-.pstr "CPI"
-.pstr "CPIR"
-.pstr "CPL"
-.pstr "DAA"
 .pstr "DEC"
-.pstr "DI"
 .pstr "DJNZ"
-.pstr "EI"
 .pstr "EX"
 .pstr "EXX"
-.pstr "HALT"
 .pstr "IM"
 .pstr "IN"
 .pstr "INC"
-.pstr "IND"
-.pstr "INDR"
-.pstr "INI"
-.pstr "INIR"
 .pstr "JP"
 .pstr "JR"
 .pstr "LD"
-.pstr "LDD"
-.pstr "LDDR"
-.pstr "LDI"
-.pstr "LDIR"
 .pstr "NEG"
-.pstr "NOP"
-.pstr "OTDR"
-.pstr "OTIR"
 .pstr "OUT"
-.pstr "OUTD"
-.pstr "OUTI"
 .pstr "POP"
 .pstr "PUSH"
 .pstr "RES"
@@ -69,17 +79,14 @@ gen_opcodes:
 .pstr "RETI"
 .pstr "RETN"
 .pstr "RLA"
-.pstr "RLCA"
 .pstr "RLD"
 .pstr "RRA"
 .pstr "RRCA"
 .pstr "RRD"
-.pstr "RST"
-.pstr "SCF"
 .pstr "SET"
 .pstr ""                    ; terminate list with a string of zero length
 
-registers:
+reg8:
 
 .pstr "B"
 .pstr "C"
@@ -93,16 +100,16 @@ registers:
 .pstr "R"
 .pstr ""                    ; terminate list with a string of zero length
 
-reg_pairs:
+reg16:
 
 .pstr "BC"
 .pstr "DE"
 .pstr "HL"
 .pstr "SP"
-.pstr "AF"                  ; NOTE: AF has the same code as SP in some instructions
 .pstr "IX"
 .pstr "IY"
 .pstr "AF'"
+.pstr "AF"                  ; NOTE: AF has the same code as SP in some instructions
 .pstr ""                    ; terminate list with a string of zero length
 
 flags:

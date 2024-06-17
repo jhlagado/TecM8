@@ -18,97 +18,113 @@ COMMA_      .equ    ","
 DIRECT_     .equ    "D"
 DOLLAR_     .equ    "$"
 EOF_        .equ    "E"
-FLAG_       .equ    "F"
 IDENT_      .equ    "I"
 LABEL_      .equ    "L"
 LPAREN_     .equ    "("
 NEWLN_      .equ    "\n"
 NUM_        .equ    "9"
 OPCODE_     .equ    "C"
-REG_        .equ    "R"
-REGPAIR_    .equ    "P"
+OPERAND_    .equ    "R"
 RPAREN_     .equ    ")"
 UNKNOWN_    .equ    "U"
 
+alu_code    .equ    0x00
+rot_code    .equ    0x20
+bli_code    .equ    0x40
+gen1_code   .equ    0x60
+gen2_code   .equ    0x80
+
 alu_idx:
 
-ADD_   .equ  0
-ADC_   .equ  1
-SUB_   .equ  2
-SBC_   .equ  3
-AND_   .equ  4
-XOR_   .equ  5
-OR_    .equ  6
-CP_    .equ  7
+ADD_   .equ  0 | alu_code
+ADC_   .equ  1 | alu_code
+SUB_   .equ  2 | alu_code
+SBC_   .equ  3 | alu_code
+AND_   .equ  4 | alu_code
+XOR_   .equ  5 | alu_code
+OR_    .equ  6 | alu_code
+CP_    .equ  7 | alu_code
 
 rot_idx:
 
-RLC_   .equ  0 | 0x10
-RRC_   .equ  1 | 0x10
-RL_    .equ  2 | 0x10
-RR_    .equ  3 | 0x10
-SLA_   .equ  4 | 0x10
-SRA_   .equ  5 | 0x10
-SLL_   .equ  6 | 0x10
-SRL_   .equ  7 | 0x10
+RLC_   .equ  0 | rot_code
+RRC_   .equ  1 | rot_code
+RL_    .equ  2 | rot_code
+RR_    .equ  3 | rot_code
+SLA_   .equ  4 | rot_code
+SRA_   .equ  5 | rot_code
+SLL_   .equ  6 | rot_code
+SRL_   .equ  7 | rot_code
 
-gen_idx:
+bli_idx:
 
-; Opcode values
-BIT_   .equ  0  | 0x40
-CALL_  .equ  1  | 0x40
-CCF_   .equ  2  | 0x40
-CPD_   .equ  3  | 0x40
-CPDR_  .equ  4  | 0x40
-CPI_   .equ  5  | 0x40
-CPIR_  .equ  6  | 0x40
-CPL_   .equ  7  | 0x40
-DAA_   .equ  8  | 0x40
-DEC_   .equ  9  | 0x40
-DI_    .equ  10 | 0x40
-DJNZ_  .equ  11 | 0x40
-EI_    .equ  12 | 0x40
-EX_    .equ  13 | 0x40
-EXX_   .equ  14 | 0x40
-HALT_  .equ  15 | 0x40
-IM_    .equ  16 | 0x40
-IN_    .equ  17 | 0x40
-INC_   .equ  18 | 0x40
-IND_   .equ  19 | 0x40
-INDR_  .equ  20 | 0x40
-INI_   .equ  21 | 0x40
-INIR_  .equ  22 | 0x40
-JP_    .equ  23 | 0x40
-JR_    .equ  24 | 0x40
-LD_    .equ  25 | 0x40
-LDD_   .equ  26 | 0x40
-LDDR_  .equ  27 | 0x40
-LDI_   .equ  28 | 0x40
-LDIR_  .equ  29 | 0x40
-NEG_   .equ  30 | 0x40
-NOP_   .equ  31 | 0x40
-OTDR_  .equ  32 | 0x40
-OTIR_  .equ  33 | 0x40
-OUT_   .equ  34 | 0x40
-OUTD_  .equ  35 | 0x40
-OUTI_  .equ  36 | 0x40
-POP_   .equ  37 | 0x40
-PUSH_  .equ  38 | 0x40
-RES_   .equ  39 | 0x40
-RET_   .equ  40 | 0x40
-RETI_  .equ  41 | 0x40
-RETN_  .equ  42 | 0x40
-RLA_   .equ  43 | 0x40
-RLCA_  .equ  44 | 0x40
-RLD_   .equ  45 | 0x40
-RRA_   .equ  46 | 0x40
-RRCA_  .equ  47 | 0x40
-RRD_   .equ  48 | 0x40
-RST_   .equ  49 | 0x40
-SCF_   .equ  50 | 0x40
-SET_   .equ  51 | 0x40
+LDI_   .equ  00 | bli_code
+CPI_   .equ  01 | bli_code
+INI_   .equ  02 | bli_code
+OUTI_  .equ  03 | bli_code
+LDD_   .equ  04 | bli_code
+CPD_   .equ  05 | bli_code
+IND_   .equ  06 | bli_code
+OUTD_  .equ  07 | bli_code
+LDIR_  .equ  08 | bli_code
+CPIR_  .equ  09 | bli_code
+INIR_  .equ  10 | bli_code
+OTIR_  .equ  11 | bli_code
+LDDR_  .equ  12 | bli_code
+CPDR_  .equ  13 | bli_code
+INDR_  .equ  14 | bli_code
+OTDR_  .equ  15 | bli_code
 
-reg_idx:
+gen1_idx:
+
+CCF_   .equ  00  | gen1_code
+CPL_   .equ  01  | gen1_code
+DAA_   .equ  02  | gen1_code
+DI_    .equ  03  | gen1_code
+EI_    .equ  04  | gen1_code
+HALT_  .equ  05  | gen1_code
+NOP_   .equ  06  | gen1_code
+RLCA_  .equ  07  | gen1_code
+RST_   .equ  08  | gen2_code
+SCF_   .equ  09  | gen1_code
+
+gen2_idx:
+
+BIT_   .equ  00  | gen2_code
+CALL_  .equ  01  | gen2_code
+DEC_   .equ  02  | gen2_code
+DJNZ_  .equ  03  | gen2_code
+EX_    .equ  04  | gen2_code
+EXX_   .equ  05  | gen2_code
+IM_    .equ  06  | gen2_code
+IN_    .equ  07  | gen2_code
+INC_   .equ  08  | gen2_code
+JP_    .equ  09  | gen2_code
+JR_    .equ  10  | gen2_code
+LD_    .equ  11  | gen2_code
+NEG_   .equ  12  | gen2_code
+OUT_   .equ  13  | gen2_code
+POP_   .equ  14  | gen2_code
+PUSH_  .equ  15  | gen2_code
+RES_   .equ  16  | gen2_code
+RET_   .equ  17  | gen2_code
+RETI_  .equ  18  | gen2_code
+RETN_  .equ  19  | gen2_code
+RLA_   .equ  20  | gen2_code
+RLD_   .equ  21  | gen2_code
+RRA_   .equ  22  | gen2_code
+RRCA_  .equ  23  | gen2_code
+RRD_   .equ  24  | gen2_code
+SET_   .equ  25  | gen2_code
+
+flag_code   .equ    0x08    ; NZ etc
+reg_code    .equ    0x10    ; A, B etc
+immed_code  .equ    0x18    ; 0xff or 0xffff
+i16_code    .equ    0x20    ; 8-bit or 16-bit e.g. A or HL, 0xff or 0xffff
+mem_code    .equ    0x40    ; (HL) or (0xffff)
+na_code     .equ    0x80    ; n/a high 7th bit means no operand (can use -1)
+
+reg8_idx:                        ; 8-bit registers
 
 B_          .equ    0           ; B
 C_          .equ    1           ; C
@@ -121,16 +137,16 @@ A_          .equ    7           ; A
 I_          .equ    8           ; I
 R_          .equ    9           ; R
 
-reg_pair_idx:
+reg16_idx:                         ; 16-bit registers
 
 BC_         .equ    0
 DE_         .equ    1
 HL_         .equ    2
 SP_         .equ    3
-AF_         .equ    4           ; NOTE: AF has the same code as SP in some instructions
 IX_         .equ    5
 IY_         .equ    6
-AFP_        .equ    7           ; AF' (prime)
+AFP_        .equ    4           ; AF' (prime)
+AF_         .equ    7           ; NOTE: AF has the same code as SP in some instructions
 
 flag_idx:
 

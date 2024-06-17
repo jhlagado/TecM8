@@ -266,7 +266,7 @@ nextToken5:
     cp "_"                      ; Is it an identifier?
     jr z, nextToken6            ; If yes, continue to the next check
     call isAlpha                ; If not, check if it's alphabetic
-    jr nc, nextToken13          ; If not, continue to the next check
+    jr nc, nextToken11          ; If not, continue to the next check
 
 nextToken6:
     call ident                  ; Parse the identifier
@@ -284,69 +284,58 @@ nextToken7:
     ret
 
 nextToken8:
-    ld de, reg_pairs            ; List of register pairs to search
-    call searchStr
+    call searchOperand
     jr nc, nextToken9
-    ld a, REGPAIR_              ; Return with REGPAIR token
+    ld a, OPERAND_              ; Return with OPERAND token
     ret
 
 nextToken9:
-    ld de, registers            ; List of registers to search
+    ld de, directives           ; List of directives to search
     call searchStr
     jr nc, nextToken10
-    ld a, REG_                  ; Return with REG token
-    ret
-
-nextToken10:
-    ld de, flags                ; List of flags to search
-    call searchStr
-    jr nc, nextToken11
-    ld a, FLAG_                 ; Return with FLAG token
-    ret
-
-nextToken11:
-    ld de, flags                ; List of flags to search
-    call searchStr
-    jr nc, nextToken12
-
     ld a, DIRECT_               ; Return with DIRECT token
     ret
 
-nextToken12:
+nextToken10:
     ld a, IDENT_                ; Return with IDENT token
     ret
 
-nextToken13:
+nextToken11:
     ld hl, 0
     cp "$"                      ; Is it a hexadecimal number?
-    jr nz, nextToken14          ; If not, continue to the next check
+    jr nz, nextToken12          ; If not, continue to the next check
     call nextChar               ; Get the next character
-    call isSpace                ; Check if it's the ASSEMBLY pointer
-    call rewindChar             ; Push back the character (flags unaffected)
-    ret z                       ; Return with the ASSEMBLY pointer token
+    call isAlphaNum             ; Check if it's the ASSEMBLY pointer
+    jr nz, nextToken11a         ; If not, continue to the next check
     call number_hex             ; Process hexadecimal number
-    jr nextToken16
-
-nextToken14:    
-    cp "-"                      ; Is it a negative number?
-    jr z, nextToken15           ; If yes, continue to the next check
-    call isDigit                ; Check if it's a digit
-    jr nc, nextToken17          ; Jump to the next check
-
-nextToken15:
-    call number                 ; Parse the number
-
-nextToken16:
     ld a, NUM_                  ; Return with NUM token
     ret
 
-nextToken17:
+nextToken11a:
+    call rewindChar             ; Push back the character (flags unaffected)
+    ld a, DOLLAR_               ; Return with DOLLAR token
+    ret                         ; Return with the DOLLAR token
+
+nextToken12:    
+    cp "-"                      ; Is it a negative number?
+    jr z, nextToken13           ; If yes, continue to the next check
+    call isDigit                ; Check if it's a digit
+    jr nc, nextToken15          ; Jump to the next check
+
+nextToken13:
+    call number                 ; Parse the number
+
+nextToken14:
+    ld a, NUM_                  ; Return with NUM token
+    ret
+
+nextToken15:
     cp "("
-    ret z                       ; Return with the '(' token
+    ret z                       ; Return with the LPAREN token
     cp ")"
-    ret z                       ; Return with the ')' token
+    ret z                       ; Return with the RPAREN token
     cp ","
-    ret z                       ; Return with the ',' token
+    ret z                       ; Return with the COMMA token
     ld a, UNKNOWN_              ; Return with UNKNOWN token
     ret
 
@@ -370,18 +359,67 @@ nextToken17:
 
 searchOpcode:
     ld de, alu_opcodes          ; Point DE to the list of ALU opcodes
-    call searchStr              ; Call searchStr to search for the string in ALU opcodes
-    ret c                       ; If carry flag is set, return (match found)
+    call searchStr              ; Search for the string in ALU opcodes
+    ret c                       ; If match found (CF set), return
 
     ld de, rot_opcodes          ; Point DE to the list of ROT opcodes
-    call searchStr              ; Call searchStr to search for the string in ROT opcodes
-    bit 1, a                    ; Check bit 1 of register A (flags unaffected)
-    ret c                       ; If carry flag is set, return (match found)
+    call searchStr              ; Search for the string in ROT opcodes
+    set 5, a                    ; Set bit 5 in A to indicate ROT opcodes
+    ret c                       ; If match found (CF set), return
 
-    ld de, gen_opcodes          ; Point DE to the list of general opcodes
-    call searchStr              ; Call searchStr to search for the string in general opcodes
-    bit 5, a                    ; Check bit 5 of register A (flags unaffected)
-    ret                         ; Return (if match found or not)
+    ld de, bli_opcodes          ; Point DE to the list of BLI opcodes
+    call searchStr              ; Search for the string in BLI opcodes
+    set 6, a                    ; Set bit 6 in A to indicate BLI opcodes
+    ret c                       ; If match found (CF set), return
+
+    ld de, gen1_opcodes         ; Point DE to the list of general opcodes (set 1)
+    call searchStr              ; Search for the string in general opcodes
+    set 5, a                    ; Set bits 5 & 6 in A to indicate general opcodes (set 1)
+    set 6, a                    
+    ret c                       ; If match found (CF set), return
+
+    ld de, gen2_opcodes         ; Point DE to the list of general opcodes (set 2)
+    call searchStr              ; Search for the string in general opcodes
+    set 7, a                    ; Set bit 7 in A to indicate general opcodes (set 2)
+
+    ret                         ; Return if no match is found
+
+; *****************************************************************************
+; Routine: searchOperand
+;
+; Purpose:
+;    Searches for an operand in the lists of 8-bit registers, 16-bit registers,
+;    and flags. Sets appropriate flags based on the type of operand found.
+;
+; Inputs:
+;    HL - Points to the start of the string to search for.
+;
+; Outputs:
+;    A  - The index of the matching operand if a match is found, or -1 if no
+;         match is found.
+;    CF - Carry flag is set if a match is found.
+;
+; Registers Destroyed:
+;    A, DE, HL
+; *****************************************************************************
+
+searchOperand:
+    ld de, reg8                 ; Point DE to the list of 8-bit register operands
+    call searchStr              ; Search for the string in reg8 operands
+    set 4, a                    ; Set bit 4 in A to indicate register operand
+    ret c                       ; If match found (CF set), return
+
+    ld de, reg16                ; Point DE to the list of 16-bit register operands
+    call searchStr              ; Search for the string in reg16 operands
+    set 4, a                    ; Set bit 4 in A to indicate a register operand
+    set 5, a                    ; Set bit 5 in A to further indicate 16-bit operand
+    ret c                       ; If match found (CF set), return
+
+    ld de, flags                ; Point DE to the list of flag operands
+    call searchStr              ; Search for the string in flag operands
+    set 3, a                    ; Set bit 3 in A to indicate flag operand
+
+    ret                         ; Return if no match is found
 
 ; *****************************************************************************
 ; Routine: pushBackToken
@@ -516,29 +554,6 @@ expr5:
     ret                    
 
 ; *****************************************************************************
-; Routine: isSpace
-; 
-; Purpose:
-;    Checks if the character in the A register is a space or tab character.
-; 
-; Input:
-;    A - Contains the character to be checked.
-; 
-; Output:
-;    A - Contains the character to be checked.
-;    CF - Set if the input character was space or tab, cleared otherwise.
-; 
-; Destroyed:
-;    None
-; *****************************************************************************
-
-isSpace:
-    cp " "            ; Compare with space character
-    ret z             ; Return if it's space
-    cp "\t"           ; Compare with tab character
-    ret               ; Return
-
-; *****************************************************************************
 ; Routine: isAlphaNum
 ; 
 ; Purpose:
@@ -625,7 +640,7 @@ isDigit:
 ;    numbers, and supports negative numbers.
 ; 
 ; Input:
-;    None
+;    A - first char of number
 ; 
 ; Output:
 ;    HL - Contains the parsed number.
@@ -661,6 +676,7 @@ number3:
     ret                ; Return
 
 number_hex:
+    call rewindChar     
     xor a
     ld (vTemp1), a     ; Store the sign flag in vTemp1
     call hex           ; Parse hexadecimal number
