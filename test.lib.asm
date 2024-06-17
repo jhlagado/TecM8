@@ -54,8 +54,13 @@ test:
     ld (tbPtr), hl            ; Initialize tbPtr with the address of the test text
     call skipZStr             ; Skip the test text string
     inc hl                    ; Move to the next byte after the null terminator
-    jp (hl)                   ; Jump to the address specified by the next byte
-
+    push hl                   ; push new return address    
+    call init                 ; Initialize the environment
+    ld hl, testGetCharImpl    ; Load the address of testGetCharImpl
+    ld (GETCVEC), hl          ; Set the GETCVEC to point to testGetCharImpl
+    call statementList        ; Execute the statementList
+    ret                       ; return to after skipped text    
+    
 ; *****************************************************************************
 ; Routine: expect
 ; 
@@ -74,10 +79,6 @@ test:
 ; *****************************************************************************
 
 expect:
-    call init                 ; Initialize the environment
-    ld hl, testGetCharImpl    ; Load the address of testGetCharImpl
-    ld (GETCVEC), hl          ; Set the GETCVEC to point to testGetCharImpl
-    call statementList        ; Execute the statementList
     pop hl                    ; Retrieve the return address
     ld de, ASSEMBLY           ; Load the expected output address into DE
     call compareStr           ; Compare the result with the expected output
@@ -90,6 +91,49 @@ expect1:
     ld hl, (tbText)           ; Load the address of the test text
     call printZStr            ; Print the test text
     halt                      ; Halt the program
+
+expectCode:
+    pop hl
+    ld de, vOpcode
+    ld a, (de)
+    cp (hl)
+    jr nz, expectCode1
+    inc hl
+    ld de, vOperand1
+    ld a, (de)
+    cp (hl)
+    jr nz, expectCode2
+    inc hl
+    ld de, vOperand2
+    ld a, (de)
+    cp (hl)
+    jr nz, expectCode3
+    inc hl
+    jp (hl)
+
+expectCode1:
+    call print
+    .cstr "Wrong opcode, expected "
+    jr expectCode4
+
+expectCode2:
+    call print
+    .cstr "Wrong operand 1, expected "
+    jr expectCode4
+
+expectCode3:
+    call print
+    .cstr "Wrong operand 2, expected "
+    jr expectCode4
+
+expectCode4:
+    call printHex
+    ex de,hl
+    call print
+    .cstr "received "
+    call printHex
+    halt    
+    
 
 ; *****************************************************************************
 ; Routine: testGetCharImpl

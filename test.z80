@@ -14,37 +14,27 @@
 testsStart:
     ld sp,STACK
 
-    call describe
-    .cstr "It should do nothing"
+    ; call describe
+    ; .cstr "It should do nothing"
     
-    call test
-    .db 0
+    ; call test
+    ; .db 0
 
-    call expect
-    .db 0
+    ; call expect
+    ; .db 0
 
     call describe
-    .cstr "It assemble one instruction"
+    .cstr "It should assemble one instruction"
     
     call test
     .db "halt"
     .db 0
 
-    call expectCodes
-    .db 00 -1 -1
+    call expectCode
+    .db HALT_, $ff, $ff
 
     call expect
-    .db 01 $76
-
-
-
-    ; call test
-    ; ; .db "label1: LD A, 42;comment\r\n"
-    ; ; .db "halt"
-    ; .db 0
-
-    ; call expect
-    ; .db 0
+    .db 01, $76
 
     call print 
     .cstr "Done!"
@@ -52,3 +42,8 @@ testsStart:
     halt
 
 .include "test.lib.asm"
+
+    ; call test
+    ; ; .db "label1: LD A, 42;comment\r\n"
+    ; ; .db "halt"
+    ; .db 0

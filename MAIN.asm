@@ -139,9 +139,11 @@ statementList:
 ; *****************************************************************************
 
 statement:
-    ; setOpcode null
-    ; setOperand1 null
-    ; setOperand2 null
+    ld a, -1
+    ld (vOpcode), a
+    ld (vOperand1), a
+    ld (vOperand2), a
+    
     cp LABEL_                  ; Check if it's a label
     jr nz, statement10         ; If not, jump to statement10
     ; call addLabel            ; Add label to symbol table
@@ -149,7 +151,7 @@ statement:
 statement10:
     cp OPCODE_                 ; Check if it's an opcode
     jr nz, statement1          
-    ; call instruction      ; Jump to parseInstruction routine
+    ; call instruction         ; Jump to parseInstruction routine
     ; call nextToken
     ; jr statement2
 statement1:
@@ -246,7 +248,7 @@ nextToken2:
     jr nz, nextToken3           ; If not, continue to the next check
     cp ":"                      ; Is it a statement separator? ":"
     jr nz, nextToken3           ; If not, continue to the next check
-    cp "\n"                     ; Is it a control char
+    cp "\n"                     ; Is it a new line
     jr nc, nextToken3           ; If not, continue to the next check
     ld a, NEWLN_                ; If yes, return with NEWLIN token
     ret                         ; Return with newline token
@@ -280,12 +282,16 @@ nextToken7:
     ld (vStrPtr), hl            ; Restore string heap pointer to previous location
     call searchOpcode
     jr nc, nextToken8
+    ld l, a                     ; hl = opcode value
+    ld h, 0
     ld a, OPCODE_               ; Return with OPCODE token
     ret
 
 nextToken8:
     call searchOperand
     jr nc, nextToken9
+    ld l, a                     ; hl = operand value
+    ld h, 0
     ld a, OPERAND_              ; Return with OPERAND token
     ret
 
@@ -293,6 +299,8 @@ nextToken9:
     ld de, directives           ; List of directives to search
     call searchStr
     jr nc, nextToken10
+    ld l, a                     ; hl = directive value
+    ld h, 0
     ld a, DIRECT_               ; Return with DIRECT token
     ret
 
