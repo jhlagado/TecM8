@@ -274,7 +274,7 @@ nextToken6:
     call ident                  ; Parse the identifier
     cp ":"                      ; Is it a label?
     jr nz, nextToken7           ; If not, continue to the next check
-    ld a, LABEL_                ; If yes, return with LABEL token
+    ld a, LABEL_                ; If yes, return A = LABEL HL = string
     ret
 
 nextToken7:    
@@ -348,88 +348,6 @@ nextToken15:
     ret
 
 ; *****************************************************************************
-; Routine: searchOpcode
-; 
-; Purpose:
-;    Searches for a matching opcode in various lists of opcodes.
-; 
-; Inputs:
-;    HL - Points to the string to search for.
-; 
-; Outputs:
-;    CF - Set if a match is found, cleared otherwise.
-;    A  - Contains the index of the matching opcode if a match is found,
-;         or the last checked index if no match is found.
-; 
-; Registers Destroyed:
-;    A, DE, F
-; *****************************************************************************
-
-searchOpcode:
-    ld de, alu_opcodes          ; Point DE to the list of ALU opcodes
-    call searchStr              ; Search for the string in ALU opcodes
-    ret c                       ; If match found (CF set), return
-
-    ld de, rot_opcodes          ; Point DE to the list of ROT opcodes
-    call searchStr              ; Search for the string in ROT opcodes
-    set 5, a                    ; Set bit 5 in A to indicate ROT opcodes
-    ret c                       ; If match found (CF set), return
-
-    ld de, bli_opcodes          ; Point DE to the list of BLI opcodes
-    call searchStr              ; Search for the string in BLI opcodes
-    set 6, a                    ; Set bit 6 in A to indicate BLI opcodes
-    ret c                       ; If match found (CF set), return
-
-    ld de, gen1_opcodes         ; Point DE to the list of general opcodes (set 1)
-    call searchStr              ; Search for the string in general opcodes
-    set 5, a                    ; Set bits 5 & 6 in A to indicate general opcodes (set 1)
-    set 6, a                    
-    ret c                       ; If match found (CF set), return
-
-    ld de, gen2_opcodes         ; Point DE to the list of general opcodes (set 2)
-    call searchStr              ; Search for the string in general opcodes
-    set 7, a                    ; Set bit 7 in A to indicate general opcodes (set 2)
-
-    ret                         ; Return if no match is found
-
-; *****************************************************************************
-; Routine: searchOperand
-;
-; Purpose:
-;    Searches for an operand in the lists of 8-bit registers, 16-bit registers,
-;    and flags. Sets appropriate flags based on the type of operand found.
-;
-; Inputs:
-;    HL - Points to the start of the string to search for.
-;
-; Outputs:
-;    A  - The index of the matching operand if a match is found, or -1 if no
-;         match is found.
-;    CF - Carry flag is set if a match is found.
-;
-; Registers Destroyed:
-;    A, DE, HL
-; *****************************************************************************
-
-searchOperand:
-    ld de, reg8                 ; Point DE to the list of 8-bit register operands
-    call searchStr              ; Search for the string in reg8 operands
-    set 4, a                    ; Set bit 4 in A to indicate register operand
-    ret c                       ; If match found (CF set), return
-
-    ld de, reg16                ; Point DE to the list of 16-bit register operands
-    call searchStr              ; Search for the string in reg16 operands
-    set 4, a                    ; Set bit 4 in A to indicate a register operand
-    set 5, a                    ; Set bit 5 in A to further indicate 16-bit operand
-    ret c                       ; If match found (CF set), return
-
-    ld de, flags                ; Point DE to the list of flag operands
-    call searchStr              ; Search for the string in flag operands
-    set 3, a                    ; Set bit 3 in A to indicate flag operand
-
-    ret                         ; Return if no match is found
-
-; *****************************************************************************
 ; Routine: pushBackToken
 ; 
 ; Purpose:
@@ -470,6 +388,7 @@ pushBackToken:
 ; 
 ; Outputs:
 ;    A - last character read from the input stream
+;    HL - identifier string
 ; 
 ; Registers Destroyed:
 ;    DE, HL
@@ -477,24 +396,24 @@ pushBackToken:
 
 ident:
     ld hl, (vStrPtr)        ; Load the address of the top of STRINGS heap
-    ld de, hl               ; Copy it to DE (DE = HL = top of STRINGS heap)
+    push hl                 ; save start of string
     inc hl                  ; Move to the next byte to skip the length byte
 ident1:
     ld (hl), a              ; Write the current character to the string BUFFER
     inc hl                  ; Move to the next position in the BUFFER
+    push hl
     call nextChar           ; Get the next character from the input stream
+    pop hl
     cp "_"                  ; Compare with underscore character
-    jr z, ident2            ; If underscore, jump to ident2
+    jr z, ident1            ; If underscore, jump to ident2
     call isAlphanum         ; Check if the character is alphanumeric
-    jr nc, ident3           ; If not alphanumeric, jump to ident3
-ident2:
-    ld (hl), a              ; Write the current character to the string BUFFER
-    inc hl                  ; Move to the next position in the BUFFER
-    jr ident1               ; Repeat the process
+    jr c, ident1            ; If not alphanumeric, jump to ident3
 ident3:
     ld (vStrPtr), hl        ; Update the top of STRINGS heap pointer
+    pop de                  ; restore start of string into de 
     or a                    ; Clear carry
     sbc hl, de              ; Calculate the length of the string (HL = length, DE = string)
+    dec l                   ; reduce by one (length byte)
     ex de, hl               ; Swap DE and HL (E = length, HL = string)
     ld (hl), e              ; Store the length at the beginning of the string BUFFER
     ret                     
@@ -831,6 +750,88 @@ searchStr3:
     ccf                   ; CF = false
     ret
    
+; *****************************************************************************
+; Routine: searchOpcode
+; 
+; Purpose:
+;    Searches for a matching opcode in various lists of opcodes.
+; 
+; Inputs:
+;    HL - Points to the string to search for.
+; 
+; Outputs:
+;    CF - Set if a match is found, cleared otherwise.
+;    A  - Contains the index of the matching opcode if a match is found,
+;         or the last checked index if no match is found.
+; 
+; Registers Destroyed:
+;    A, DE, F
+; *****************************************************************************
+
+searchOpcode:
+    ld de, alu_opcodes          ; Point DE to the list of ALU opcodes
+    call searchStr              ; Search for the string in ALU opcodes
+    ret c                       ; If match found (CF set), return
+
+    ld de, rot_opcodes          ; Point DE to the list of ROT opcodes
+    call searchStr              ; Search for the string in ROT opcodes
+    set 5, a                    ; Set bit 5 in A to indicate ROT opcodes
+    ret c                       ; If match found (CF set), return
+
+    ld de, bli_opcodes          ; Point DE to the list of BLI opcodes
+    call searchStr              ; Search for the string in BLI opcodes
+    set 6, a                    ; Set bit 6 in A to indicate BLI opcodes
+    ret c                       ; If match found (CF set), return
+
+    ld de, gen1_opcodes         ; Point DE to the list of general opcodes (set 1)
+    call searchStr              ; Search for the string in general opcodes
+    set 5, a                    ; Set bits 5 & 6 in A to indicate general opcodes (set 1)
+    set 6, a                    
+    ret c                       ; If match found (CF set), return
+
+    ld de, gen2_opcodes         ; Point DE to the list of general opcodes (set 2)
+    call searchStr              ; Search for the string in general opcodes
+    set 7, a                    ; Set bit 7 in A to indicate general opcodes (set 2)
+
+    ret                         ; Return if no match is found
+
+; *****************************************************************************
+; Routine: searchOperand
+;
+; Purpose:
+;    Searches for an operand in the lists of 8-bit registers, 16-bit registers,
+;    and flags. Sets appropriate flags based on the type of operand found.
+;
+; Inputs:
+;    HL - Points to the start of the string to search for.
+;
+; Outputs:
+;    A  - The index of the matching operand if a match is found, or -1 if no
+;         match is found.
+;    CF - Carry flag is set if a match is found.
+;
+; Registers Destroyed:
+;    A, DE, HL
+; *****************************************************************************
+
+searchOperand:
+    ld de, reg8                 ; Point DE to the list of 8-bit register operands
+    call searchStr              ; Search for the string in reg8 operands
+    set 4, a                    ; Set bit 4 in A to indicate register operand
+    ret c                       ; If match found (CF set), return
+
+    ld de, reg16                ; Point DE to the list of 16-bit register operands
+    call searchStr              ; Search for the string in reg16 operands
+    set 4, a                    ; Set bit 4 in A to indicate a register operand
+    set 5, a                    ; Set bit 5 in A to further indicate 16-bit operand
+    ret c                       ; If match found (CF set), return
+
+    ld de, flags                ; Point DE to the list of flag operands
+    call searchStr              ; Search for the string in flag operands
+    set 3, a                    ; Set bit 3 in A to indicate flag operand
+
+    ret                         ; Return if no match is found
+
 
 ; *****************************************************************************
 ; Routine: compareStr
@@ -955,7 +956,7 @@ nextLine6:
 nextLine7:
     ld hl, vBufferPos
     ld (hl), 0
-    ret                 
+    jr nextChar                  
 
 ; *****************************************************************************
 ; Routine: rewindChar
