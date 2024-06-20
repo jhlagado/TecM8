@@ -159,8 +159,8 @@ statement:
     ret z
     cp LABEL_                   ; Check if it's a label
     jr nz, statement1           ; If not, jump to statement10
-    ld de, (vAsmPtr)            ; hl = name, de = value 
-    call newSymbol              ; Add label to symbol table
+    ld de, (vAsmPtr)            ; HL = symbol name DE = symbol value (assembler pointer)
+    call addSymbol              ; Add label to symbol list
     call nextToken              ; Get the next token
 
 statement1:
@@ -221,7 +221,7 @@ operand:
     cp LPAREN_              ; Check if the token is a left parenthesis
     jr z, operand1          ; If so, handle as a memory reference
 
-    call newExpr            ; Otherwise, treat as an expression
+    call expression            ; Otherwise, treat as an expression
     ld (vOpExpr), hl        ; Store the result of the operand expression
     ld a, immed_            ; Set A to indicate an immediate value
     ret
@@ -235,7 +235,7 @@ operand1:
     call isIndexReg
     jr nz, operand4
     push af                 ; Save HL on the stack
-    call newExpr            ; Treat as an expression
+    call expression            ; Treat as an expression
     ld (vOpDisp), hl        ; Store the result of the expression
     pop af                  ; Restore HL from the stack
     set 7, a                ; Set A to indicate an indexed memory reference
@@ -245,7 +245,7 @@ operand3:
     jr operand4
 
 operand2:
-    call newExpr            ; Treat as a new expression
+    call expression            ; Treat as a new expression
     ld (vOpExpr), hl        ; Store the result of the expression
     ld a, immed_ | mem_     ; Set A to indicate an immediate memory reference
     jr operand4
@@ -256,15 +256,78 @@ operand4:
     jp nz, parseError       ; If not, handle as a parse error
     ret
 
-newSymbol:
-    ; hl is string
-    ; asmPtr is the value
-    ret
+; *****************************************************************************
+; Routine: expression
+; 
+; Purpose:
+;    Parses an expression as an array of tokens and stores it on the heap. 
+;    Each token in the expression is appended to an array which terminated by 
+;    a NULL token type. 
+;    The expression list pointer is updated to put the start of the last token list.
+; 
+; Inputs:
+;    HL - Initially points to the current token.
+; 
+; Outputs:
+;    Updates the heap with the parsed expression and updates the expression list pointer.
+; 
+; Registers Destroyed:
+;    AF, DE, HL
+; *****************************************************************************
 
-newExpr:
-    ; gather tokens in array
-    ; return pointer in hl
-    ret
+expression:
+    push hl                 ; Save HL (current token)
+    push af                 ; Save AF (flags)
+    ld de, (vHeapPtr)       ; Load the current heap pointer into DE
+    ld hl, (vExprPtr)       ; Load the current expression list pointer into HL
+    call hpush              ; Push the pointer to the last symbol onto the heap
+    ld hl, 0                ; Append two words in header
+    call hpush
+    call hpush
+    ld (vExprPtr), de       ; Update the expression list pointer with the new address
+    pop hl                  ; Restore HL (current token)
+    ld h, 0                 ; Clear H (token type is stored in L)
+    call hpush              ; Push the token type onto the heap
+    pop hl                  ; Restore HL (token value)
+    call hpush              ; Push the token value onto the heap
+    call nextToken          ; Get the next token
+    call isEndOfExpr        ; Check if the end of the expression is reached
+    jr nz, expression       ; If not, repeat for the next token
+    ld hl, NULL             ; Mark the end of the expression with NULL
+    call hpush              ; Push NULL onto the heap
+    call rewindToken        ; Rewind the token to the last valid one
+    ret                     ; Return from the subroutine
+
+; *****************************************************************************
+; Routine: addSymbol
+; 
+; Purpose:
+;    Adds a new symbol to the symbol list. The symbol's name is in HL and the 
+;    symbol's value is in DE. Updates the symbol list pointer and ensures 
+;    the previous symbol's pointer is preserved.
+; 
+; Inputs:
+;    HL - Points to the name of the new symbol.
+;    DE - Contains the value of the new symbol.
+; 
+; Outputs:
+;    Updates the symbol list pointer in vSymPtr.
+; 
+; Registers Destroyed:
+;    DE, HL
+; *****************************************************************************
+addSymbol:
+    push de
+    push hl                 ; Push symbol name onto the stack
+    ld de, (vHeapPtr)       ; BC = symbol address from the heap pointer
+    ld hl, (vSymPtr)        ; Load the current symbol list pointer into HL
+    call hpush              ; Push pointer to the last symbol onto the heap
+    ld (vSymPtr), de        ; Update the symbol list pointer with the new symbol address
+    pop hl                  ; HL = symbol name
+    call hpush              ; Push symbol name onto the heap
+    pop hl                  ; HL = symbol value
+    call hpush              ; Push symbol value onto the heap
+    ret                     ; Return from subroutine
 
 ; nextToken is a lexer function that reads characters from the input and classifies 
 ; them into different token types. It handles whitespace, end of input, newlines, 
@@ -555,6 +618,182 @@ expr5:
     ld a, e                 ; Load the length into A
     ret                    
 
+
+; *****************************************************************************
+; Routine: searchStr
+; 
+; Purpose:
+;    Search through a list of Pascal STRINGS for a match.
+; 
+; Inputs:
+;    HL - Points to the string to search for.
+;    DE - Points to the start of the list of STRINGS.
+; 
+; Outputs:
+;    CF - True if match, false otherwise.
+;    A - Index of the matching string if a match is found, or -1 if no match 
+;        is found.
+;    HL - Points to the string to search for.
+; 
+; Destroyed:
+;    A, B, C, D, E, A', F'
+; *****************************************************************************
+
+searchStr:
+    ex de, hl             ; DE = search string, HL = string list
+    xor a                 ; Initialize index counter, ZF = true, CF = false
+    ex af, af'            ; Exchange AF with AF prime
+
+searchStr1:
+    push de               ; Store search string
+    push hl               ; Store current string
+    call compareStr
+    jr nz, searchStr
+    pop hl                ; Discard current string
+    pop hl                ; HL = search string
+    ex af, af'            ; Load index of match
+    ccf                   ; If match, CF = true
+    ret
+
+searchStr3:
+    pop hl                ; Restore current string
+    pop de                ; Restore search string
+    ld a, (hl)            ; Load length of current string
+    inc a                 ; A = length byte plus length of string
+    ld c, a               ; BC = A
+    ld b, 0
+    add hl, bc            ; HL += BC, move to next string
+    push de               ; Store search string
+    push hl               ; Store current string
+    ex af, af'            ; Increment index counter, ZF = false, CF = false
+    inc a
+    ex af, af'
+    ld a, (hl)            ; A = length of next string
+    or a                  ; If A != 0, continue searching
+    jr nz, searchStr1
+    dec a                 ; A = NO_MATCH (i.e., -1), ZF = false
+    ccf                   ; CF = false
+    ret
+   
+; *****************************************************************************
+; Routine: searchOpcode
+; 
+; Purpose:
+;    Searches for a matching opcode in various lists of opcodes.
+; 
+; Inputs:
+;    HL - Points to the string to search for.
+; 
+; Outputs:
+;    CF - Set if a match is found, cleared otherwise.
+;    A  - Contains the index of the matching opcode if a match is found,
+;         or the last checked index if no match is found.
+; 
+; Registers Destroyed:
+;    A, DE, F
+; *****************************************************************************
+
+searchOpcode:
+    ld de, alu_opcodes          ; Point DE to the list of ALU opcodes
+    call searchStr              ; Search for the string in ALU opcodes
+    ret c                       ; If match found (CF set), return
+
+    ld de, rot_opcodes          ; Point DE to the list of ROT opcodes
+    call searchStr              ; Search for the string in ROT opcodes
+    set 5, a                    ; Set bit 5 in A to indicate ROT opcodes
+    ret c                       ; If match found (CF set), return
+
+    ld de, bli_opcodes          ; Point DE to the list of BLI opcodes
+    call searchStr              ; Search for the string in BLI opcodes
+    set 6, a                    ; Set bit 6 in A to indicate BLI opcodes
+    ret c                       ; If match found (CF set), return
+
+    ld de, gen1_opcodes         ; Point DE to the list of general opcodes (set 1)
+    call searchStr              ; Search for the string in general opcodes
+    set 5, a                    ; Set bits 5 & 6 in A to indicate general opcodes (set 1)
+    set 6, a                    
+    ret c                       ; If match found (CF set), return
+
+    ld de, gen2_opcodes         ; Point DE to the list of general opcodes (set 2)
+    call searchStr              ; Search for the string in general opcodes
+    set 7, a                    ; Set bit 7 in A to indicate general opcodes (set 2)
+
+    ret                         ; Return if no match is found
+
+; *****************************************************************************
+; Routine: searchOpElem
+;
+; Purpose:
+;    Searches for an op element in the lists of 8-bit registers, 16-bit registers,
+;    and flags. Sets appropriate flags based on the type of operand found.
+;
+; Inputs:
+;    HL - Points to the start of the string to search for.
+;
+; Outputs:
+;    A  - The index of the matching op element if a match is found, or -1 if no
+;         match is found.
+;    CF - Carry flag is set if a match is found.
+;
+; Registers Destroyed:
+;    A, DE, HL
+; *****************************************************************************
+
+; reg_    .equ    0x00    ; A, B etc
+; rp_     .equ    0x08    ; bit 3: 8-bit or 16-bit e.g. A or HL, 0xff or 0xffff
+; flag_   .equ    0x10    ; bit 4: NZ etc
+
+searchOpElem:
+    ld de, reg8                 ; Point DE to the list of 8-bit register operands
+    call searchStr              ; Search for the string in reg8 operands
+    ret c                       ; If match found (CF set), return
+
+    ld de, reg16                ; Point DE to the list of 16-bit register operands
+    call searchStr              ; Search for the string in reg16 operands
+    set 3, a                    ; Set bit 4 in A to indicate a register operand
+    ret c                       ; If match found (CF set), return
+
+    ld de, flags                ; Point DE to the list of flag operands
+    call searchStr              ; Search for the string in flag operands
+    set 4, a                    ; Set bit 3 in A to indicate flag operand
+
+    ret                         ; Return if no match is found
+
+; *****************************************************************************
+; Routine: compareStr
+; 
+; Purpose:
+;    Compares two Pascal strings. The comparison includes
+;    the length byte and continues until all characters are compared or a
+;    mismatch is found.
+; 
+; Inputs:
+;    DE - Points to the start of string1
+;    HL - Points to the start of string2
+; 
+; Outputs:
+;    ZF - Set if the strings are equal
+; 
+; Registers Destroyed:
+;    A, B, DE, HL
+; *****************************************************************************
+
+compareStr:
+    ld a, (de)            ; Load length of search string
+    ld b, a               ; Copy length to B for looping
+    inc b                 ; Increase to include length byte     
+
+compareStr2:
+    ld a, (de)            ; Load next character from search string
+    cp (hl)               ; Compare with next character in current string
+    ret nz                ; Return if characters are not equal
+    inc de                ; Move to next character in search string
+    inc hl                ; Move to next character in current string
+    djnz compareStr2      ; Loop until all characters compared or mismatch
+
+compareStr3:
+    ret                   ; Return with ZF set if strings are equal
+
 ; *****************************************************************************
 ; Routine: isIndexReg
 ; 
@@ -812,183 +1051,6 @@ decimal1:
     adc a, h           ; Add carry to H
     ld h, a            ; Store result back in H
     jr decimal1        ; Jump back to start of loop
-
-
-; *****************************************************************************
-; Routine: searchStr
-; 
-; Purpose:
-;    Search through a list of Pascal STRINGS for a match.
-; 
-; Inputs:
-;    HL - Points to the string to search for.
-;    DE - Points to the start of the list of STRINGS.
-; 
-; Outputs:
-;    CF - True if match, false otherwise.
-;    A - Index of the matching string if a match is found, or -1 if no match 
-;        is found.
-;    HL - Points to the string to search for.
-; 
-; Destroyed:
-;    A, B, C, D, E, A', F'
-; *****************************************************************************
-
-searchStr:
-    ex de, hl             ; DE = search string, HL = string list
-    xor a                 ; Initialize index counter, ZF = true, CF = false
-    ex af, af'            ; Exchange AF with AF prime
-
-searchStr1:
-    push de               ; Store search string
-    push hl               ; Store current string
-    call compareStr
-    jr nz, searchStr
-    pop hl                ; Discard current string
-    pop hl                ; HL = search string
-    ex af, af'            ; Load index of match
-    ccf                   ; If match, CF = true
-    ret
-
-searchStr3:
-    pop hl                ; Restore current string
-    pop de                ; Restore search string
-    ld a, (hl)            ; Load length of current string
-    inc a                 ; A = length byte plus length of string
-    ld c, a               ; BC = A
-    ld b, 0
-    add hl, bc            ; HL += BC, move to next string
-    push de               ; Store search string
-    push hl               ; Store current string
-    ex af, af'            ; Increment index counter, ZF = false, CF = false
-    inc a
-    ex af, af'
-    ld a, (hl)            ; A = length of next string
-    or a                  ; If A != 0, continue searching
-    jr nz, searchStr1
-    dec a                 ; A = NO_MATCH (i.e., -1), ZF = false
-    ccf                   ; CF = false
-    ret
-   
-; *****************************************************************************
-; Routine: searchOpcode
-; 
-; Purpose:
-;    Searches for a matching opcode in various lists of opcodes.
-; 
-; Inputs:
-;    HL - Points to the string to search for.
-; 
-; Outputs:
-;    CF - Set if a match is found, cleared otherwise.
-;    A  - Contains the index of the matching opcode if a match is found,
-;         or the last checked index if no match is found.
-; 
-; Registers Destroyed:
-;    A, DE, F
-; *****************************************************************************
-
-searchOpcode:
-    ld de, alu_opcodes          ; Point DE to the list of ALU opcodes
-    call searchStr              ; Search for the string in ALU opcodes
-    ret c                       ; If match found (CF set), return
-
-    ld de, rot_opcodes          ; Point DE to the list of ROT opcodes
-    call searchStr              ; Search for the string in ROT opcodes
-    set 5, a                    ; Set bit 5 in A to indicate ROT opcodes
-    ret c                       ; If match found (CF set), return
-
-    ld de, bli_opcodes          ; Point DE to the list of BLI opcodes
-    call searchStr              ; Search for the string in BLI opcodes
-    set 6, a                    ; Set bit 6 in A to indicate BLI opcodes
-    ret c                       ; If match found (CF set), return
-
-    ld de, gen1_opcodes         ; Point DE to the list of general opcodes (set 1)
-    call searchStr              ; Search for the string in general opcodes
-    set 5, a                    ; Set bits 5 & 6 in A to indicate general opcodes (set 1)
-    set 6, a                    
-    ret c                       ; If match found (CF set), return
-
-    ld de, gen2_opcodes         ; Point DE to the list of general opcodes (set 2)
-    call searchStr              ; Search for the string in general opcodes
-    set 7, a                    ; Set bit 7 in A to indicate general opcodes (set 2)
-
-    ret                         ; Return if no match is found
-
-; *****************************************************************************
-; Routine: searchOpElem
-;
-; Purpose:
-;    Searches for an op element in the lists of 8-bit registers, 16-bit registers,
-;    and flags. Sets appropriate flags based on the type of operand found.
-;
-; Inputs:
-;    HL - Points to the start of the string to search for.
-;
-; Outputs:
-;    A  - The index of the matching op element if a match is found, or -1 if no
-;         match is found.
-;    CF - Carry flag is set if a match is found.
-;
-; Registers Destroyed:
-;    A, DE, HL
-; *****************************************************************************
-
-; reg_    .equ    0x00    ; A, B etc
-; rp_     .equ    0x08    ; bit 3: 8-bit or 16-bit e.g. A or HL, 0xff or 0xffff
-; flag_   .equ    0x10    ; bit 4: NZ etc
-
-searchOpElem:
-    ld de, reg8                 ; Point DE to the list of 8-bit register operands
-    call searchStr              ; Search for the string in reg8 operands
-    ret c                       ; If match found (CF set), return
-
-    ld de, reg16                ; Point DE to the list of 16-bit register operands
-    call searchStr              ; Search for the string in reg16 operands
-    set 3, a                    ; Set bit 4 in A to indicate a register operand
-    ret c                       ; If match found (CF set), return
-
-    ld de, flags                ; Point DE to the list of flag operands
-    call searchStr              ; Search for the string in flag operands
-    set 4, a                    ; Set bit 3 in A to indicate flag operand
-
-    ret                         ; Return if no match is found
-
-
-; *****************************************************************************
-; Routine: compareStr
-; 
-; Purpose:
-;    Compares two Pascal strings. The comparison includes
-;    the length byte and continues until all characters are compared or a
-;    mismatch is found.
-; 
-; Inputs:
-;    DE - Points to the start of string1
-;    HL - Points to the start of string2
-; 
-; Outputs:
-;    ZF - Set if the strings are equal
-; 
-; Registers Destroyed:
-;    A, B, DE, HL
-; *****************************************************************************
-
-compareStr:
-    ld a, (de)            ; Load length of search string
-    ld b, a               ; Copy length to B for looping
-    inc b                 ; Increase to include length byte     
-
-compareStr2:
-    ld a, (de)            ; Load next character from search string
-    cp (hl)               ; Compare with next character in current string
-    ret nz                ; Return if characters are not equal
-    inc de                ; Move to next character in search string
-    inc hl                ; Move to next character in current string
-    djnz compareStr2      ; Loop until all characters compared or mismatch
-
-compareStr3:
-    ret                   ; Return with ZF set if strings are equal
 
 ; *****************************************************************************
 ; Routine: nextChar
@@ -1248,6 +1310,63 @@ printZStr2:
     or a                      ; Check if the character is null
     jr nz, printZStr1         ; If not null, continue printing
     ret                       ; Return when null character is encountered
+
+; *****************************************************************************
+; Routine: hpush
+; 
+; Purpose:
+;    Pushes a 16-bit value onto the heap. The value to be pushed is in DE,
+;    and the heap pointer is updated accordingly.
+; 
+; Inputs:
+;    DE - The 16-bit value to be pushed onto the heap.
+; 
+; Outputs:
+;    Updates the heap pointer in vHeapPtr.
+; 
+; Registers Destroyed:
+;    DE, HL
+; *****************************************************************************
+hpush:
+    push de                 ; Save DE
+    ex de, hl               ; Exchange DE and HL to move value to DE
+    ld hl, (vHeapPtr)       ; Load the current top of the heap into HL
+    ld (hl), d              ; Store the high byte of DE (now in HL) on the heap
+    inc hl                  ; Increment HL to point to the next heap position
+    ld (hl), e              ; Store the low byte of DE (now in HL) on the heap
+    inc hl                  ; Increment HL to point to the new top of the heap
+    ld (vHeapPtr), hl       ; Update the heap pointer with the new top of the heap
+    pop de                  ; Restore DE
+    ret                     ; Return from the subroutine
+
+; ; *****************************************************************************
+; ; Routine: hpop
+; ; 
+; ; Purpose:
+; ;    Pops a 16-bit value from the heap into HL. The heap pointer is updated 
+; ;    accordingly.
+; ; 
+; ; Inputs:
+; ;    None
+; ; 
+; ; Outputs:
+; ;    HL - Contains the 16-bit value popped from the heap.
+; ;    Updates the heap pointer in vHeapPtr.
+; ; 
+; ; Registers Destroyed:
+; ;    DE, HL
+; ; *****************************************************************************
+; hpop:
+;     push de                 ; Save DE
+;     ld hl, (vHeapPtr)       ; Load the current top of the heap into HL
+;     dec hl                  ; Decrement HL to point to the high byte of the value
+;     ld l, (hl)              ; Load the low byte of the value into L
+;     dec hl                  ; Decrement HL to point to the low byte of the value
+;     ld h, (hl)              ; Load the high byte of the value into H
+;     ld (vHeapPtr), hl       ; Update the heap pointer with the new top of the heap
+;     ex de, hl               ; Exchange DE and HL to move the value to HL
+;     pop de                  ; Restore DE
+;     ret                     ; Return from the subroutine
 
 ; *******************************************************************************
 ; *********  END OF MAIN   ******************************************************

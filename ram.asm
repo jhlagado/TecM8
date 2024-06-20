@@ -23,7 +23,6 @@ vOperand2   ds 1
 vOpExpr     ds 2
 vOpDisp     ds 2
 
-
 STRINGS:    ds STRS_SIZE             ; string heap - grows up
 SYMBOLS:    ds SYMS_SIZE             ; symbol heap - grows up
 EXPRS:      ds EXPRS_SIZE             ; expression heap - grows up
