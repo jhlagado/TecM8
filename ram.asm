@@ -20,6 +20,9 @@ vExprPtr:   ds 2                ; pointer to expression STACK
 vOpcode     ds 1
 vOperand1   ds 1
 vOperand2   ds 1
+vOpExpr     ds 2
+vOpDisp     ds 2
+
 
 STRINGS:    ds STRS_SIZE             ; string heap - grows up
 SYMBOLS:    ds SYMS_SIZE             ; symbol heap - grows up

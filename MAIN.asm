@@ -95,7 +95,11 @@ parse:
     call statementList         ; Parse the input program
     call print                 ; Print completion message
     .cstr "Parsing completed successfully."
-    halt                       ; Halt the system
+    halt                       
+
+parseError:
+    .cstr "Unexpected token."
+    halt                       
 
 ; *****************************************************************************
 ; Routine: statementList
@@ -115,10 +119,12 @@ parse:
 ; *****************************************************************************
 
 statementList:
-    call nextToken             ; Get the next token
+    call nextToken              ; Get the next token
+    call statement             ; Parse a statement
+    call isEndOfLine
+    jr nz, parseError
     cp EOF_                    ; Check if it's the end of file
     ret z                      ; If yes, return
-    call statement             ; Parse a statement
     jr statementList           ; Repeat for the next statement
 
 ; *****************************************************************************
@@ -139,55 +145,126 @@ statementList:
 ; *****************************************************************************
 
 statement:
+    push af                     ; save token
     ld a, -1
     ld (vOpcode), a
     ld (vOperand1), a
     ld (vOperand2), a
-    
-    cp LABEL_                  ; Check if it's a label
-    jr nz, statement10         ; If not, jump to statement10
-    ; call addLabel            ; Add label to symbol table
-    call nextToken             ; Get the next token
-statement10:
-    cp OPCODE_                 ; Check if it's an opcode
-    jr nz, statement1          
-    ; call instruction         ; Jump to parseInstruction routine
-    ; call nextToken
-    ; jr statement2
+    xor a
+    ld (vOpExpr), a
+    ld (vOpDisp), a
+    pop af                      ; restore token
+
+    call isEndOfLine
+    ret z
+    cp LABEL_                   ; Check if it's a label
+    jr nz, statement1           ; If not, jump to statement10
+    ld de, (vAsmPtr)            ; hl = name, de = value 
+    call newSymbol              ; Add label to symbol table
+    call nextToken              ; Get the next token
+
 statement1:
-    cp DIRECT_                 ; Check if it's a directive
-    jr nz, statement2          
-    ; jp directive        ; Jump to parseDirective routine
-    ; call nextToken
-statement2:
-    cp NEWLN_
-    ret z
-    cp EOF_
-    ret z
-    ; throw error, expected NEWLN or EOF
+    cp OPCODE_                  ; Check if it's an opcode
+    jr z, instruction           ; Jump to parseInstruction routine
+    cp DIRECT_                  ; Check if it's a directive
+    jr z, directive
     ret
 
 instruction:
-    ; check if Opcode has been set
-    ; setOpcode a
+    ld a, l
+    ld (vOpcode), a
     call nextToken
-    cp NEWLN_
-    jr z,instruction1
-    cp EOF_
-    jr z,instruction2
-instruction1:
-    call pushBackToken
-instruction2:
-    call firstOperand
+    call operand
+    ld (vOperand1), a
     call nextToken
     cp COMMA_
+    ret nz
     call nextToken
-    call secondOperand
-
-firstOperand:
-secondOperand:
+    call operand
+    ld (vOperand2), a
+    ret
 
 directive:    
+    ret
+
+; *****************************************************************************
+; Routine: operand
+; 
+; Purpose:
+;    Parses and identifies different types of operands (registers, memory,
+;    immediate values, etc.) used in assembly instructions. Sets the appropriate
+;    flags based on the operand type.
+; 
+; Inputs:
+;    None (uses the current token from a token stream)
+; 
+; Outputs:
+;    A  - Contains the code indicating the type of operand identified.
+;    DE - May point to a value or expression depending on the operand type.
+; 
+; Registers Destroyed:
+;    A, DE, HL
+; Define operand codes for readability and use in the operand routine.
+;
+; reg_    .equ    0x00        ; A, B etc
+; rp_     .equ    0x08        ; bit 3: register pair e.g. HL, DE
+; flag_   .equ    0x10        ; bit 4: flag NZ etc
+; immed_  .equ    0x20        ; bit 5: immediate 0xff or 0xffff
+; mem_    .equ    0x40        ; bit 6: memory ref (HL) or (0xffff)
+; idx_    .equ    0x80        ; bit 7: indexed (IX+dd)
+; *****************************************************************************
+
+operand:
+    cp OPELEM_              ; Check if the token is an op element i.e. reg, rp or flag
+    ret z                   ; Return if it is
+
+    cp LPAREN_              ; Check if the token is a left parenthesis
+    jr z, operand1          ; If so, handle as a memory reference
+
+    call newExpr            ; Otherwise, treat as an expression
+    ld (vOpExpr), hl        ; Store the result of the operand expression
+    ld a, immed_            ; Set A to indicate an immediate value
+    ret
+
+operand1:
+    call nextToken          ; Memory reference. Get the next token
+    cp OPELEM_              ; Check if the next token is an op element
+    jr nz, operand2         ; If not, handle as an expression inside parentheses
+
+    ld a, l                 ; Otherwise, Load A with the lower byte of HL (operand)
+    call isIndexReg
+    jr nz, operand4
+    push af                 ; Save HL on the stack
+    call newExpr            ; Treat as an expression
+    ld (vOpDisp), hl        ; Store the result of the expression
+    pop af                  ; Restore HL from the stack
+    set 7, a                ; Set A to indicate an indexed memory reference
+
+operand3:
+    set 6, a                ; Otherwise, set A to indicate a memory reference
+    jr operand4
+
+operand2:
+    call newExpr            ; Treat as a new expression
+    ld (vOpExpr), hl        ; Store the result of the expression
+    ld a, immed_ | mem_     ; Set A to indicate an immediate memory reference
+    jr operand4
+
+operand4:
+    call nextToken          ; Get the next token
+    cp RPAREN_              ; Check if the next token is a right parenthesis
+    jp nz, parseError       ; If not, handle as a parse error
+    ret
+
+newSymbol:
+    ; hl is string
+    ; asmPtr is the value
+    ret
+
+newExpr:
+    ; gather tokens in array
+    ; return pointer in hl
+    ret
 
 ; nextToken is a lexer function that reads characters from the input and classifies 
 ; them into different token types. It handles whitespace, end of input, newlines, 
@@ -236,8 +313,6 @@ nextToken1:
     cp " "                      ; is it space? 
     jr z, nextToken1            ; If yes, skip it and get the next character
     cp EOF                      ; Is it null (end of input)?
-    jr z, nextToken1a            
-    cp CTRL_C                   ; end of text
     jr nz, nextToken2           ; If not, continue to the next check
 nextToken1a:
     ld a, EOF_                  ; If yes, return with EOF token
@@ -288,11 +363,11 @@ nextToken7:
     ret
 
 nextToken8:
-    call searchOperand
+    call searchOpElem
     jr nc, nextToken9
-    ld l, a                     ; hl = operand value
+    ld l, a                     ; hl = op element value
     ld h, 0
-    ld a, OPERAND_              ; Return with OPERAND token
+    ld a, OPELEM_              ; Return with OPELEM token
     ret
 
 nextToken9:
@@ -479,6 +554,51 @@ expr5:
     ld (hl), e              ; Store the length at the beginning of the string BUFFER
     ld a, e                 ; Load the length into A
     ret                    
+
+; *****************************************************************************
+; Routine: isIndexReg
+; 
+; Purpose:
+;    Checks if the current operand is an index register (IX or IY).
+; 
+; Inputs:
+;    A - The operand to check.
+; 
+; Outputs:
+;    ZF - Set if the operand is an index register (IX or IY).
+; 
+; Registers Destroyed:
+;    None
+; *****************************************************************************
+
+isIndexReg:
+    cp IX_                       ; Compare operand with IX
+    ret z                        ; Return if equal (ZF is set)
+    cp IY_                       ; Compare operand with IY
+    ret                          ; Return (ZF is set if equal, cleared otherwise)
+
+; *****************************************************************************
+; Routine: isEndOfLine
+; 
+; Purpose:
+;    Checks if the current character is an end-of-line character.
+; 
+; Inputs:
+;    A - The character to check.
+; 
+; Outputs:
+;    ZF - Set if the character is an end-of-line character (EOF or newline),
+;         cleared otherwise.
+; 
+; Registers Destroyed:
+;    None
+; *****************************************************************************
+
+isEndOfLine:
+    cp EOF                      ; Compare A with EOF
+    ret z                       ; Return if A is EOF (ZF set)
+    cp "\n"                     ; Compare A with newline
+    ret                         ; Return if A is newline (ZF set), otherwise ZF cleared
 
 ; *****************************************************************************
 ; Routine: isAlphaNum
@@ -796,17 +916,17 @@ searchOpcode:
     ret                         ; Return if no match is found
 
 ; *****************************************************************************
-; Routine: searchOperand
+; Routine: searchOpElem
 ;
 ; Purpose:
-;    Searches for an operand in the lists of 8-bit registers, 16-bit registers,
+;    Searches for an op element in the lists of 8-bit registers, 16-bit registers,
 ;    and flags. Sets appropriate flags based on the type of operand found.
 ;
 ; Inputs:
 ;    HL - Points to the start of the string to search for.
 ;
 ; Outputs:
-;    A  - The index of the matching operand if a match is found, or -1 if no
+;    A  - The index of the matching op element if a match is found, or -1 if no
 ;         match is found.
 ;    CF - Carry flag is set if a match is found.
 ;
@@ -814,21 +934,23 @@ searchOpcode:
 ;    A, DE, HL
 ; *****************************************************************************
 
-searchOperand:
+; reg_    .equ    0x00    ; A, B etc
+; rp_     .equ    0x08    ; bit 3: 8-bit or 16-bit e.g. A or HL, 0xff or 0xffff
+; flag_   .equ    0x10    ; bit 4: NZ etc
+
+searchOpElem:
     ld de, reg8                 ; Point DE to the list of 8-bit register operands
     call searchStr              ; Search for the string in reg8 operands
-    set 4, a                    ; Set bit 4 in A to indicate register operand
     ret c                       ; If match found (CF set), return
 
     ld de, reg16                ; Point DE to the list of 16-bit register operands
     call searchStr              ; Search for the string in reg16 operands
-    set 4, a                    ; Set bit 4 in A to indicate a register operand
-    set 5, a                    ; Set bit 5 in A to further indicate 16-bit operand
+    set 3, a                    ; Set bit 4 in A to indicate a register operand
     ret c                       ; If match found (CF set), return
 
     ld de, flags                ; Point DE to the list of flag operands
     call searchStr              ; Search for the string in flag operands
-    set 3, a                    ; Set bit 3 in A to indicate flag operand
+    set 4, a                    ; Set bit 3 in A to indicate flag operand
 
     ret                         ; Return if no match is found
 
