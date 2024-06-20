@@ -58,21 +58,22 @@ start:
 ; *****************************************************************************
 
 init:
-    xor a               ; Clear A register
-    ld (vToken), a      ; Initialize vToken with NUL_ token
-    ld (vBufferPos), a  ; Initialize BUFFER position
+    ld hl, 0            ; 
+    ld (vTokenVal), hl  ; vTokenVal = 0
+    ld (vSymPtr), hl    ; vSymPtr = 0
+    ld (vExprPtr), hl   ; vExprPtr = 0
+    xor a               ; 
+    ld (vToken), a      ; vToken = 0
+    ld (vBufferPos), a  ; vBufferPos = 0
     ld a, "\n"          ; put new line into first char of buffer
     ld (BUFFER),a       ; 
-    ld hl, ASSEMBLY     ; Load ASSEMBLY pointer
-    ld (vAsmPtr), hl    ; Store in vAsmPtr
-    ld hl, STRINGS      ; Load STRINGS pointer
-    ld (vStrPtr), hl    ; Store in vStrPtr
-    ld (vTokenVal), hl  ; Initialize token value pointer
-    ld hl, SYMBOLS      ; Load SYMBOLS pointer
-    ld (vSymPtr), hl    ; Store in vSymPtr
-    ld hl, EXPRS        ; Load expressions pointer
-    ld (vExprPtr), hl   ; Store in vExprPtr
-    ret                 ; Return
+    ld hl, HEAP         ; vHeapPtr = HEAP
+    ld (vHeapPtr), hl   ; 
+    ld hl, ASSEMBLY     ; vAsmPtr = ASSEMBLY
+    ld (vAsmPtr), hl    ; 
+    ld hl, STRINGS      ; vStrPtr = STRINGS
+    ld (vStrPtr), hl    ; 
+    ret                 
 
 ; *****************************************************************************
 ; Routine: parse
@@ -120,12 +121,13 @@ parseError:
 
 statementList:
     call nextToken              ; Get the next token
-    call statement             ; Parse a statement
-    call isEndOfLine
+    call statement              ; Parse a statement
+    cp "\n"
     jr nz, parseError
-    cp EOF_                    ; Check if it's the end of file
-    ret z                      ; If yes, return
-    jr statementList           ; Repeat for the next statement
+    call nextToken              ; Get the next token
+    cp EOF_                     ; Check if it's the end of file
+    ret z                       ; If yes, return
+    jr statementList            ; Repeat for the next statement
 
 ; *****************************************************************************
 ; Routine: statement
@@ -155,7 +157,7 @@ statement:
     ld (vOpDisp), a
     pop af                      ; restore token
 
-    call isEndOfLine
+    cp "\n"
     ret z
     cp LABEL_                   ; Check if it's a label
     jr nz, statement1           ; If not, jump to statement10
@@ -199,8 +201,7 @@ directive:
 ;    None (uses the current token from a token stream)
 ; 
 ; Outputs:
-;    A  - Contains the code indicating the type of operand identified.
-;    DE - May point to a value or expression depending on the operand type.
+;    A - Contains the code indicating the type of operand identified.
 ; 
 ; Registers Destroyed:
 ;    A, DE, HL
@@ -221,7 +222,7 @@ operand:
     cp LPAREN_              ; Check if the token is a left parenthesis
     jr z, operand1          ; If so, handle as a memory reference
 
-    call expression            ; Otherwise, treat as an expression
+    call expression         ; Otherwise, treat as an expression
     ld (vOpExpr), hl        ; Store the result of the operand expression
     ld a, immed_            ; Set A to indicate an immediate value
     ret
@@ -235,7 +236,7 @@ operand1:
     call isIndexReg
     jr nz, operand4
     push af                 ; Save HL on the stack
-    call expression            ; Treat as an expression
+    call expression         ; Treat as an expression
     ld (vOpDisp), hl        ; Store the result of the expression
     pop af                  ; Restore HL from the stack
     set 7, a                ; Set A to indicate an indexed memory reference
@@ -245,7 +246,7 @@ operand3:
     jr operand4
 
 operand2:
-    call expression            ; Treat as a new expression
+    call expression         ; Treat as a new expression
     ld (vOpExpr), hl        ; Store the result of the expression
     ld a, immed_ | mem_     ; Set A to indicate an immediate memory reference
     jr operand4
@@ -260,43 +261,70 @@ operand4:
 ; Routine: expression
 ; 
 ; Purpose:
-;    Parses an expression as an array of tokens and stores it on the heap. 
-;    Each token in the expression is appended to an array which terminated by 
+;    Parses an expression as an array of tokens and stores it in an array. 
+;    Each token in the expression is appended to an array which is terminated by 
 ;    a NULL token type. 
-;    The expression list pointer is updated to put the start of the last token list.
+;    The expression list pointer is updated to point to the start of the last token list.
 ; 
 ; Inputs:
-;    HL - Initially points to the current token.
+;    A - token type
+;    HL - token value
 ; 
 ; Outputs:
 ;    Updates the heap with the parsed expression and updates the expression list pointer.
 ; 
 ; Registers Destroyed:
-;    AF, DE, HL
+;    AF, B, HL
 ; *****************************************************************************
 
 expression:
-    push hl                 ; Save HL (current token)
-    push af                 ; Save AF (flags)
+    ld b, 0                 ; Initialize nesting level
+    push hl                 ; Save token value
     ld de, (vHeapPtr)       ; Load the current heap pointer into DE
     ld hl, (vExprPtr)       ; Load the current expression list pointer into HL
     call hpush              ; Push the pointer to the last symbol onto the heap
-    ld hl, 0                ; Append two words in header
+    ld hl, 0                ; Append two words in header (for future use)
     call hpush
     call hpush
     ld (vExprPtr), de       ; Update the expression list pointer with the new address
-    pop hl                  ; Restore HL (current token)
-    ld h, 0                 ; Clear H (token type is stored in L)
-    call hpush              ; Push the token type onto the heap
-    pop hl                  ; Restore HL (token value)
-    call hpush              ; Push the token value onto the heap
+    pop hl                  ; HL = token value
+
+expression1:
+    ex de, hl               ; DE = token value
+    ld l, a                 ; HL = token type
+    ld h, 0                 
+    call hpush              ; Push the token type
+    ex de, hl               ; HL = token value
+    call hpush              ; Push the token value
     call nextToken          ; Get the next token
-    call isEndOfExpr        ; Check if the end of the expression is reached
-    jr nz, expression       ; If not, repeat for the next token
+    cp "("                  ; increase nesting?
+    jr nz, expression2
+    inc b                   
+    call nextToken          ; Get the next token
+    jr expression1          ; Repeat the main loop
+
+expression2:
+    inc b                   ; Check if nesting level is zero
+    dec b
+    jr z, expression3       ; If yes, skip to expression3
+    cp ")"                  ; if nesting > 0, decrease nesting?
+    jr nz, expression3
+    dec b                   ; Decrease nesting level
+    call nextToken          ; Get the next token
+    jr expression1          ; Repeat the main loop
+
+expression3:
+    cp ")"                  ; Check if the end of the expression
+    jr z, expression4
+    cp ","                  
+    jr z, expression4
+    cp "\n"                 
+    jr nz, expression1
+
+expression4:
     ld hl, NULL             ; Mark the end of the expression with NULL
     call hpush              ; Push NULL onto the heap
-    call rewindToken        ; Rewind the token to the last valid one
-    ret                     ; Return from the subroutine
+    jp pushBackToken        ; Rewind the token to the last valid one
 
 ; *****************************************************************************
 ; Routine: addSymbol
@@ -556,67 +584,67 @@ ident3:
     ld (hl), e              ; Store the length at the beginning of the string BUFFER
     ret                     
 
-; *****************************************************************************
-; Routine: expr
-; 
-; Purpose:
-;    Collects a string until it reaches a right parenthesis, comma, semicolon,
-;    or newline character. Keeps track of parentheses to ensure correct ending
-;    of the expression.
-; 
-; Inputs:
-;    None
-; 
-; Outputs:
-;    HL - Points to the collected string.
-;    A - Contains the length of the collected string.
-; 
-; Registers Destroyed:
-;    A, C, D, E, HL
-; *****************************************************************************
+; ; *****************************************************************************
+; ; Routine: expr
+; ; 
+; ; Purpose:
+; ;    Collects a string until it reaches a right parenthesis, comma, semicolon,
+; ;    or newline character. Keeps track of parentheses to ensure correct ending
+; ;    of the expression.
+; ; 
+; ; Inputs:
+; ;    None
+; ; 
+; ; Outputs:
+; ;    HL - Points to the collected string.
+; ;    A - Contains the length of the collected string.
+; ; 
+; ; Registers Destroyed:
+; ;    A, C, D, E, HL
+; ; *****************************************************************************
 
-expr:
-    ld hl, (vStrPtr)        ; Load the address of the top of STRINGS heap
-    ld de, hl               ; Copy it to DE (DE = HL = top of STRINGS heap)
-    inc hl                  ; Move to the next byte to skip the length byte
-    ld c, 1                 ; Initialize parenthesis count to 1
-expr1:
-    ld (hl), a              ; Write the current character to the string BUFFER
-    inc hl                  ; Move to the next position in the BUFFER
-    call nextChar           ; Get the next character from the input stream
-    cp '('                  ; Compare with left parenthesis character
-    jr z, expr2             ; If left parenthesis, increase count
-    cp ')'                  ; Compare with right parenthesis character
-    jr z, expr3             ; If right parenthesis, decrease count
-    cp ','                  ; Compare with comma character
-    jr z, expr4             ; If comma, check if parentheses count is zero
-    cp ';'                  ; Compare with semicolon character
-    jr z, expr4             ; If semicolon, check if parentheses count is zero
-    cp '\n'                 ; Compare with newline character
-    jr z, expr4             ; If newline, check if parentheses count is zero
-    call isAlphanum         ; Check if the character is alphanumeric
-    jr nc, expr4            ; If not alphanumeric, check if parentheses count is zero
-    jr expr1                ; Repeat the process
-expr2:
-    inc c                   ; Increase parentheses count
-    jr expr1                ; Repeat the process
-expr3:
-    dec c                   ; Decrease parentheses count
-    jr nz, expr1            ; If not zero, continue collecting
-    jr expr5                ; If zero, end collection
-expr4:
-    xor a
-    cp c                    ; Check if parentheses count is zero
-    jr nz, expr1            ; If not zero, continue collecting
-expr5:
-    call rewindChar         ; Rewind the input stream by one character
-    ld (vStrPtr), hl        ; Update the top of STRINGS heap pointer
-    or a                    ; Clear A register
-    sbc hl, de              ; Calculate the length of the string (HL = length, DE = string)
-    ex de, hl               ; Swap DE and HL (E = length, HL = string)
-    ld (hl), e              ; Store the length at the beginning of the string BUFFER
-    ld a, e                 ; Load the length into A
-    ret                    
+; expr:
+;     ld hl, (vStrPtr)        ; Load the address of the top of STRINGS heap
+;     ld de, hl               ; Copy it to DE (DE = HL = top of STRINGS heap)
+;     inc hl                  ; Move to the next byte to skip the length byte
+;     ld c, 1                 ; Initialize parenthesis count to 1
+; expr1:
+;     ld (hl), a              ; Write the current character to the string BUFFER
+;     inc hl                  ; Move to the next position in the BUFFER
+;     call nextChar           ; Get the next character from the input stream
+;     cp '('                  ; Compare with left parenthesis character
+;     jr z, expr2             ; If left parenthesis, increase count
+;     cp ')'                  ; Compare with right parenthesis character
+;     jr z, expr3             ; If right parenthesis, decrease count
+;     cp ','                  ; Compare with comma character
+;     jr z, expr4             ; If comma, check if parentheses count is zero
+;     cp ';'                  ; Compare with semicolon character
+;     jr z, expr4             ; If semicolon, check if parentheses count is zero
+;     cp '\n'                 ; Compare with newline character
+;     jr z, expr4             ; If newline, check if parentheses count is zero
+;     call isAlphanum         ; Check if the character is alphanumeric
+;     jr nc, expr4            ; If not alphanumeric, check if parentheses count is zero
+;     jr expr1                ; Repeat the process
+; expr2:
+;     inc c                   ; Increase parentheses count
+;     jr expr1                ; Repeat the process
+; expr3:
+;     dec c                   ; Decrease parentheses count
+;     jr nz, expr1            ; If not zero, continue collecting
+;     jr expr5                ; If zero, end collection
+; expr4:
+;     xor a
+;     cp c                    ; Check if parentheses count is zero
+;     jr nz, expr1            ; If not zero, continue collecting
+; expr5:
+;     call rewindChar         ; Rewind the input stream by one character
+;     ld (vStrPtr), hl        ; Update the top of STRINGS heap pointer
+;     or a                    ; Clear A register
+;     sbc hl, de              ; Calculate the length of the string (HL = length, DE = string)
+;     ex de, hl               ; Swap DE and HL (E = length, HL = string)
+;     ld (hl), e              ; Store the length at the beginning of the string BUFFER
+;     ld a, e                 ; Load the length into A
+;     ret                    
 
 
 ; *****************************************************************************
@@ -794,6 +822,12 @@ compareStr2:
 compareStr3:
     ret                   ; Return with ZF set if strings are equal
 
+isEndOfExpr:
+    cp b                         ; Compare operand with IX
+    ret z                        ; Return if equal (ZF is set)
+    cp "\n"                      ; Compare operand with IY
+    ret                          ; Return (ZF is set if equal, cleared otherwise)
+        
 ; *****************************************************************************
 ; Routine: isIndexReg
 ; 
@@ -815,29 +849,6 @@ isIndexReg:
     ret z                        ; Return if equal (ZF is set)
     cp IY_                       ; Compare operand with IY
     ret                          ; Return (ZF is set if equal, cleared otherwise)
-
-; *****************************************************************************
-; Routine: isEndOfLine
-; 
-; Purpose:
-;    Checks if the current character is an end-of-line character.
-; 
-; Inputs:
-;    A - The character to check.
-; 
-; Outputs:
-;    ZF - Set if the character is an end-of-line character (EOF or newline),
-;         cleared otherwise.
-; 
-; Registers Destroyed:
-;    None
-; *****************************************************************************
-
-isEndOfLine:
-    cp EOF                      ; Compare A with EOF
-    ret z                       ; Return if A is EOF (ZF set)
-    cp "\n"                     ; Compare A with newline
-    ret                         ; Return if A is newline (ZF set), otherwise ZF cleared
 
 ; *****************************************************************************
 ; Routine: isAlphaNum
@@ -1127,7 +1138,12 @@ nextLine5:
     cp "\r"                     ; Check if character is carriage return
     jr nz, nextLine6
     ld a, "\n"
+    jr nextLine6
 
+nextLine5a:
+    ld (hl),"\n"                ; insert newline before EOF
+    inc hl
+    
 nextLine6:
     ld (hl), a                  ; Store the character in the BUFFER
     inc hl                      ; Move to the next position in the BUFFER

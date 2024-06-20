@@ -16,6 +16,7 @@ vAsmPtr:    ds 2                ; pointer to ASSEMBLY point
 vStrPtr:    ds 2                ; pointer to string STACK
 vSymPtr:    ds 2                ; pointer to symbol STACK
 vExprPtr:   ds 2                ; pointer to expression STACK
+vHeapPtr:   ds 2                ; pointer to expression STACK
 
 vOpcode     ds 1
 vOperand1   ds 1
@@ -23,9 +24,6 @@ vOperand2   ds 1
 vOpExpr     ds 2
 vOpDisp     ds 2
 
-STRINGS:    ds STRS_SIZE             ; string heap - grows up
-SYMBOLS:    ds SYMS_SIZE             ; symbol heap - grows up
-EXPRS:      ds EXPRS_SIZE             ; expression heap - grows up
 
 RST08:      ds 2                 
 RST10:      ds 2                 
@@ -39,4 +37,6 @@ NMIVEC:     ds 2
 GETCVEC:    ds 2                   
 PUTCVEC:    ds 2                   
 
+STRINGS:    ds STRS_SIZE             ; string heap - grows up
+HEAP:       ds HEAP_SIZE             ; expression heap - grows up
 ASSEMBLY:
