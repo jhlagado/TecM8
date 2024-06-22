@@ -156,17 +156,23 @@ expectOpItem:
     ret                             ; return after message string
 
 expectOpItem1:
+    call crlf
+    call crlf
+    ld hl,(tbDesc)                  ; Load the address of the test text
+    call printZStr                  ; Print the test description
+    call crlf
+    call crlf
     call print                      ; Print error messages if the bytes do not match
-    .cstr "Expected"                ; Print "Expected"
-
+    .cstr "Expected: "               ; Print "Expected"
     ld a,(de)                       ; Load the expected byte into A for printing
     call printHex2                  ; Print the expected byte in hexadecimal
+    call crlf
     call print                      ; Print "Received"
-    .cstr "Actual"
-
+    .cstr "Actual: "
     ld a,(hl)                       ; Load the actual byte into A for printing
     call printHex2                  ; Print the actual byte in hexadecimal
-    call error                      ; Display error message
+    call crlf
+    halt                            ; Halt the program
 
 ; *****************************************************************************
 ; Routine: testGetCharImpl
@@ -235,20 +241,19 @@ printHex:
 ; *****************************************************************************
 
 printHex2:
-    ld c,a                         ; Copy the value in A to C
+    ld c,a                          ; Copy the value in A to C
     rra                             ; Shift the high nibble to the low nibble
     rra
     rra
     rra
     call printHex3                  ; Print the high nibble as hex
-    ld a,c                         ; Restore the original value to A
-    ret
+    ld a,c                          ; Restore the original value to A
 
 printHex3:
     and 0x0F                        ; Mask out the upper nibble
-    add a,0x90                     ; Add 0x90 to adjust for the ASCII range
+    add a,0x90                      ; Add 0x90 to adjust for the ASCII range
     daa                             ; Decimal adjust A to get the correct ASCII value
-    adc a,0x40                     ; Add 0x40 to get the ASCII character for 0-9/A-F
+    adc a,0x40                      ; Add 0x40 to get the ASCII character for 0-9/A-F
     daa                             ; Decimal adjust A to get the correct ASCII value
     jp putchar                      ; Jump to the putchar routine to display the character
 	

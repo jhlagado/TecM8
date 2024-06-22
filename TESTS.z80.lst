@@ -2018,281 +2018,300 @@
 4000                          .ORG   $4000   
 4000                TESTSSTART:      
 4000   31 80 31               LD   sp,STACK   
+4003                             ; ------------------------------------------------------------
 4003                             ; call describe
 4003                             ; .cstr "It should do nothing"
 4003                             ; call test
 4003                             ; .db 0
 4003                             ; call expect
 4003                             ; .db 0
-4003   CD 49 40               CALL   describe   
-4006   49 74 20 73 68 6F 75 6C 64 20 61 73 73 65 6D 62 6C 65 20 6F 6E 65 20 69 6E 73 74 72 75 63 74 69 6F 6E 00 .CSTR   "It should assemble one instruction"   
-4029   CD 52 40               CALL   test   
-402C   68 61 6C 74            DB   "halt"   
-4030   00                     DB   0   
-4031   CD 86 40               CALL   expectOpData   
-4034   65 FF FF               DB   HALT_,-1,-1   
-4037                             ; call expect
-4037                             ; .db 01,$76
-4037   CD 98 05               CALL   print   
-403A   0D 0A 44 6F 6E 65 21 00 .CSTR   "\r\nDone!"   
-4042   76                     HALT      
-4043                             ; *****************************************************************************
-4043                             ; Test variables
-4043                             ; *****************************************************************************
-4043                TBDESC:      
-4043   00 00                  DW   0   ; Address of the description
-4045                TBTEXT:      
-4045   00 00                  DW   0   ; Address of the test text
-4047                TBPTR:       
-4047   00 00                  DW   0   ; Pointer to the current position in the test text
-4049                             ; *****************************************************************************
-4049                             ; Routine: describe
-4049                             ; 
-4049                             ; Purpose:
-4049                             ;    Stores the address of a description string in tbDesc and then skips the string.
-4049                             ; 
-4049                             ; Inputs:
-4049                             ;    HL - Address of the description string
-4049                             ; 
-4049                             ; Outputs:
-4049                             ;    None
-4049                             ; 
-4049                             ; Registers Destroyed:
-4049                             ;    HL
-4049                             ; *****************************************************************************
-4049                DESCRIBE:      
-4049   E1                     POP   hl   ; Retrieve the return address (address of the description string)
-404A   22 43 40               LD   (tbDesc),hl   ; Store the address in tbDesc
-404D   CD 1B 41               CALL   skipZStr   ; Skip the description string
-4050   23                     INC   hl   ; Move to the next byte after the null terminator
-4051   E9                     JP   (hl)   ; Jump to the address specified by the next byte
-4052                             ; *****************************************************************************
-4052                             ; Routine: test
-4052                             ; 
-4052                             ; Purpose:
-4052                             ;    Stores the address of a test text in tbText and tbPtr,and then skips the string.
-4052                             ; 
-4052                             ; Inputs:
-4052                             ;    HL - Address of the test text
-4052                             ; 
-4052                             ; Outputs:
-4052                             ;    None
-4052                             ; 
-4052                             ; Registers Destroyed:
-4052                             ;    HL
-4052                             ; *****************************************************************************
-4052                TEST:        
-4052   E1                     POP   hl   ; Retrieve the return address (address of the test text)
-4053   22 45 40               LD   (tbText),hl   ; Store the address in tbText
-4056   22 47 40               LD   (tbPtr),hl   ; Initialize tbPtr with the address of the test text
-4059   CD 1B 41               CALL   skipZStr   ; Skip the test text string
-405C   23                     INC   hl   ; Move to the next byte after the null terminator
-405D   E5                     PUSH   hl   ; push new return address
-405E   CD 98 01               CALL   init   ; Initialize the environment
-4061   21 F0 40               LD   hl,testGetCharImpl   ; Load the address of testGetCharImpl
-4064   22 AA 31               LD   (GETCVEC),hl   ; Set the GETCVEC to point to testGetCharImpl
-4067   C3 F7 01               JP   statementList   
-406A                             ; *****************************************************************************
-406A                             ; Routine: expect
-406A                             ; 
-406A                             ; Purpose:
-406A                             ;    Initializes the environment,sets up the testGetCharImpl,executes the statementList,
-406A                             ;    and compares the result with the expected output.
-406A                             ; 
-406A                             ; Inputs:
-406A                             ;    None
-406A                             ; 
-406A                             ; Outputs:
-406A                             ;    None
-406A                             ; 
-406A                             ; Registers Destroyed:
-406A                             ;    HL,DE
-406A                             ; *****************************************************************************
-406A                EXPECT:      
-406A   E1                     POP   hl   ; Retrieve the return address
-406B   11 AE 32               LD   de,ASSEMBLY   ; Load the expected output address into DE
-406E   CD 58 04               CALL   compareStr   ; Compare the result with the expected output
-4071   20 01                  JR   nz,expect1   ; If comparison fails,jump to expect1
-4073   E9                     JP   (hl)   ; If comparison succeeds,jump to the return address
-4074                EXPECT1:      
-4074   CD 98 05               CALL   print   ; Print the failure message
-4077   46 61 69 6C 65 64 21 00 .CSTR   "Failed!"   
-407F   2A 45 40               LD   hl,(tbText)   ; Load the address of the test text
-4082   CD AC 05               CALL   printZStr   ; Print the test text
-4085   76                     HALT      ; Halt the program
-4086                             ; *****************************************************************************
-4086                             ; Routine: expectOpData
-4086                             ; 
-4086                             ; Purpose:
-4086                             ;    Validate the sequence of opcode and operands against expected values.
-4086                             ;    Print error messages if any mismatch occurs and jump to the next handler.
-4086                             ; 
-4086                             ; Inputs:
-4086                             ;    DE - Points to the expected op data
-4086                             ;    HL - Points to the actual op data
-4086                             ; 
-4086                             ; Outputs:
-4086                             ;    Updates DE and HL as it processes each byte in the sequences.
-4086                             ; 
-4086                             ; Registers Destroyed:
-4086                             ;    A,DE,HL
-4086                             ; *****************************************************************************
-4086                EXPECTOPDATA:      
-4086   D1                     POP   de   ; Load DE with the return address pointing to the actual opcode/operand sequence
-4087   21 91 31               LD   hl,vOpcode   ; Load HL with the address of the expected opcode/operand sequence
-408A   CD C2 40               CALL   expectOpItem   ; Compare actual and expected opcode
-408D   57 72 6F 6E 67 20 6F 70 63 6F 64 65 00 .CSTR   "Wrong opcode"   ; Error message if the opcode does not match
-409A   CD C2 40               CALL   expectOpItem   ; Compare actual and expected first operand
-409D   57 72 6F 6E 67 20 6F 70 65 72 61 6E 64 20 31 00 .CSTR   "Wrong operand 1"   ; Error message if the first operand does not match
-40AD   CD C2 40               CALL   expectOpItem   ; Compare actual and expected second operand
-40B0   57 72 6F 6E 67 20 6F 70 65 72 61 6E 64 20 32 00 .CSTR   "Wrong operand 2"   ; Error message if the second operand does not match
-40C0   EB                     EX   de,hl   
-40C1   E9                     JP   (hl)   ; Jump to the address after expected op data
-40C2                             ; *****************************************************************************
-40C2                             ; Routine: expectOpItem
-40C2                             ; 
-40C2                             ; Purpose:
-40C2                             ;    Compare the actual and expected opcode/operand byte and handle mismatches.
-40C2                             ; 
-40C2                             ; Inputs:
-40C2                             ;    DE - Points to the expected byte.
-40C2                             ;    HL - Points to the actual byte.
-40C2                             ; 
-40C2                             ; Outputs:
-40C2                             ;    Increments DE and HL to the next byte in the sequences.
-40C2                             ;    Prints error messages if any mismatch occurs.
-40C2                             ; 
-40C2                             ; Registers Destroyed:
-40C2                             ;    A,DE,HL
-40C2                             ; *****************************************************************************
-40C2                EXPECTOPITEM:      
-40C2   1A                     LD   a,(de)   ; Load the expected byte into A from DE
-40C3   BE                     CP   (hl)   ; Compare expected with actual
-40C4   13                     INC   de   ; Move DE to point to next expected byte
-40C5   23                     INC   hl   ; Move HL to point to next actual byte
-40C6   20 07                  JR   nz,expectOpItem1   ; Return if the bytes match
-40C8   E3                     EX   (sp),hl   ; HL = expected string to skip (sp) = actual*
-40C9   CD 1B 41               CALL   skipZStr   ; Skip the message string
-40CC   23                     INC   hl   ; Move to the next byte after the null terminator
-40CD   E3                     EX   (sp),hl   ; HL = actual* (SP) = expected string to skip
-40CE   C9                     RET      ; return after message string
-40CF                EXPECTOPITEM1:      
-40CF   CD 98 05               CALL   print   ; Print error messages if the bytes do not match
-40D2   45 78 70 65 63 74 65 64 00 .CSTR   "Expected"   ; Print "Expected"
-40DB   1A                     LD   a,(de)   ; Load the expected byte into A for printing
-40DC   CD 06 41               CALL   printHex2   ; Print the expected byte in hexadecimal
-40DF   CD 98 05               CALL   print   ; Print "Received"
-40E2   41 63 74 75 61 6C 00   .CSTR   "Actual"   
-40E9   7E                     LD   a,(hl)   ; Load the actual byte into A for printing
-40EA   CD 06 41               CALL   printHex2   ; Print the actual byte in hexadecimal
-40ED   CD 93 05               CALL   error   ; Display error message
-40F0                             ; *****************************************************************************
-40F0                             ; Routine: testGetCharImpl
-40F0                             ; 
-40F0                             ; Purpose:
-40F0                             ;    Retrieves the next character from the test text.
-40F0                             ; 
-40F0                             ; Inputs:
-40F0                             ;    tbPtr - Pointer to the current position in the test text
-40F0                             ; 
-40F0                             ; Outputs:
-40F0                             ;    A - The next character from the test text
-40F0                             ; 
-40F0                             ; Registers Destroyed:
-40F0                             ;    A,HL
-40F0                             ; *****************************************************************************
-40F0                TESTGETCHARIMPL:      
-40F0   E5                     PUSH   hl   ; Save HL register
-40F1   2A 47 40               LD   hl,(tbPtr)   ; Load the current pointer from tbPtr
-40F4   7E                     LD   a,(hl)   ; Load the next character from the test text
-40F5   23                     INC   hl   ; Move to the next character
-40F6   22 47 40               LD   (tbPtr),hl   ; Update tbPtr with the new pointer
-40F9   E1                     POP   hl   ; Restore HL register
-40FA   C9                     RET      ; Return with the character in A
-40FB                             ; *****************************************************************************
-40FB                             ; Routine: printHex
-40FB                             ; 
-40FB                             ; Purpose:
-40FB                             ;    Displays the 16-bit value in the HL register as a hexadecimal number.
-40FB                             ; 
-40FB                             ; Inputs:
-40FB                             ;    HL - The 16-bit value to be displayed.
-40FB                             ; 
-40FB                             ; Outputs:
-40FB                             ;    None
-40FB                             ; 
-40FB                             ; Registers Destroyed:
-40FB                             ;    A,C
-40FB                             ; *****************************************************************************
-40FB                PRINTHEX:      
-40FB   C5                     PUSH   bc   ; Preserve the BC register pair
-40FC   7C                     LD   a,h   ; Load the high byte of HL into A
-40FD   CD 06 41               CALL   printHex2   ; Print the high byte as hex
-4100   7D                     LD   a,l   ; Load the low byte of HL into A
-4101   CD 06 41               CALL   printHex2   ; Print the low byte as hex
-4104   C1                     POP   bc   ; Restore the BC register pair
-4105   C9                     RET      ; Return from the routine
-4106                             ; *****************************************************************************
-4106                             ; Routine: printHex2
-4106                             ; 
-4106                             ; Purpose:
-4106                             ;    Prints a single byte in hexadecimal format by printing its high and low nibbles.
-4106                             ; 
-4106                             ; Inputs:
-4106                             ;    A - The byte to be printed.
-4106                             ; 
-4106                             ; Outputs:
-4106                             ;    None.
-4106                             ; 
-4106                             ; Registers Destroyed:
-4106                             ;    A,C
-4106                             ; *****************************************************************************
-4106                PRINTHEX2:      
-4106   4F                     LD   c,a   ; Copy the value in A to C
-4107   1F                     RRA      ; Shift the high nibble to the low nibble
-4108   1F                     RRA      
-4109   1F                     RRA      
-410A   1F                     RRA      
-410B   CD 10 41               CALL   printHex3   ; Print the high nibble as hex
-410E   79                     LD   a,c   ; Restore the original value to A
-410F   C9                     RET      
-4110                PRINTHEX3:      
-4110   E6 0F                  AND   0x0F   ; Mask out the upper nibble
-4112   C6 90                  ADD   a,0x90   ; Add 0x90 to adjust for the ASCII range
-4114   27                     DAA      ; Decimal adjust A to get the correct ASCII value
-4115   CE 40                  ADC   a,0x40   ; Add 0x40 to get the ASCII character for 0-9/A-F
-4117   27                     DAA      ; Decimal adjust A to get the correct ASCII value
-4118   C3 87 00               JP   putchar   ; Jump to the putchar routine to display the character
-411B                             ; 
-411B                             ; *****************************************************************************
-411B                             ; Routine: skipZStr
-411B                             ; 
-411B                             ; Purpose:
-411B                             ;    Skips over a null-terminated string in memory,advancing the HL register
-411B                             ;    to the character following the null terminator.
-411B                             ; 
-411B                             ; Inputs:
-411B                             ;    HL - Points to the start of the string to skip.
-411B                             ; 
-411B                             ; Outputs:
-411B                             ;    HL - Points to the character immediately after the null terminator.
-411B                             ; 
-411B                             ; Registers Destroyed:
-411B                             ;    A
-411B                             ; *****************************************************************************
-411B                SKIPZSTR:      
-411B   18 01                  JR   skipZStr2   ; Jump to the character loading step
-411D                SKIPZSTR1:      
-411D   23                     INC   hl   ; Move to the next character
-411E                SKIPZSTR2:      
-411E   7E                     LD   a,(hl)   ; Load the current character
-411F   B7                     OR   a   ; Check if the character is null
-4120   20 FB                  JR   nz,skipZStr1   ; If not null,continue to the next character
-4122   C9                     RET      ; Return when a null character is found
-4123                             ; call test
-4123                             ; ; .db "label1: LD A,42;comment\r\n"
-4123                             ; ; .db "halt"
-4123                             ; .db 0
+4003                             ; ------------------------------------------------------------
+4003                             ; call describe
+4003                             ; .cstr "parse opcode without operands"
+4003                             ; call test
+4003                             ; .db "halt"
+4003                             ; .db 0
+4003                             ; call expectOpData
+4003                             ; .db HALT_, -1, -1
+4003                             ; ------------------------------------------------------------
+4003   CD 4D 40               CALL   describe   
+4006   70 61 72 73 65 20 6F 70 63 6F 64 65 20 77 69 74 68 20 61 6E 20 69 6D 6D 65 64 69 61 74 65 20 6F 70 65 72 61 6E 64 00 .CSTR   "parse opcode with an immediate operand"   
+402D   CD 56 40               CALL   test   
+4030   68 61 6C 74            DB   "halt"   
+4034   00                     DB   0   
+4035   CD 8A 40               CALL   expectOpData   
+4038   89 FF 20               DB   JP_,-1,immed_   
+403B                             ; ------------------------------------------------------------
+403B                             ; .cstr "It should assemble one instruction"
+403B                             ; call expect
+403B                             ; .db 01,$76
+403B   CD 98 05               CALL   print   
+403E   0D 0A 44 6F 6E 65 21 00 .CSTR   "\r\nDone!"   
+4046   76                     HALT      
+4047                             ; *****************************************************************************
+4047                             ; Test variables
+4047                             ; *****************************************************************************
+4047                TBDESC:      
+4047   00 00                  DW   0   ; Address of the description
+4049                TBTEXT:      
+4049   00 00                  DW   0   ; Address of the test text
+404B                TBPTR:       
+404B   00 00                  DW   0   ; Pointer to the current position in the test text
+404D                             ; *****************************************************************************
+404D                             ; Routine: describe
+404D                             ; 
+404D                             ; Purpose:
+404D                             ;    Stores the address of a description string in tbDesc and then skips the string.
+404D                             ; 
+404D                             ; Inputs:
+404D                             ;    HL - Address of the description string
+404D                             ; 
+404D                             ; Outputs:
+404D                             ;    None
+404D                             ; 
+404D                             ; Registers Destroyed:
+404D                             ;    HL
+404D                             ; *****************************************************************************
+404D                DESCRIBE:      
+404D   E1                     POP   hl   ; Retrieve the return address (address of the description string)
+404E   22 47 40               LD   (tbDesc),hl   ; Store the address in tbDesc
+4051   CD 38 41               CALL   skipZStr   ; Skip the description string
+4054   23                     INC   hl   ; Move to the next byte after the null terminator
+4055   E9                     JP   (hl)   ; Jump to the address specified by the next byte
+4056                             ; *****************************************************************************
+4056                             ; Routine: test
+4056                             ; 
+4056                             ; Purpose:
+4056                             ;    Stores the address of a test text in tbText and tbPtr,and then skips the string.
+4056                             ; 
+4056                             ; Inputs:
+4056                             ;    HL - Address of the test text
+4056                             ; 
+4056                             ; Outputs:
+4056                             ;    None
+4056                             ; 
+4056                             ; Registers Destroyed:
+4056                             ;    HL
+4056                             ; *****************************************************************************
+4056                TEST:        
+4056   E1                     POP   hl   ; Retrieve the return address (address of the test text)
+4057   22 49 40               LD   (tbText),hl   ; Store the address in tbText
+405A   22 4B 40               LD   (tbPtr),hl   ; Initialize tbPtr with the address of the test text
+405D   CD 38 41               CALL   skipZStr   ; Skip the test text string
+4060   23                     INC   hl   ; Move to the next byte after the null terminator
+4061   E5                     PUSH   hl   ; push new return address
+4062   CD 98 01               CALL   init   ; Initialize the environment
+4065   21 0E 41               LD   hl,testGetCharImpl   ; Load the address of testGetCharImpl
+4068   22 AA 31               LD   (GETCVEC),hl   ; Set the GETCVEC to point to testGetCharImpl
+406B   C3 F7 01               JP   statementList   
+406E                             ; *****************************************************************************
+406E                             ; Routine: expect
+406E                             ; 
+406E                             ; Purpose:
+406E                             ;    Initializes the environment,sets up the testGetCharImpl,executes the statementList,
+406E                             ;    and compares the result with the expected output.
+406E                             ; 
+406E                             ; Inputs:
+406E                             ;    None
+406E                             ; 
+406E                             ; Outputs:
+406E                             ;    None
+406E                             ; 
+406E                             ; Registers Destroyed:
+406E                             ;    HL,DE
+406E                             ; *****************************************************************************
+406E                EXPECT:      
+406E   E1                     POP   hl   ; Retrieve the return address
+406F   11 AE 32               LD   de,ASSEMBLY   ; Load the expected output address into DE
+4072   CD 58 04               CALL   compareStr   ; Compare the result with the expected output
+4075   20 01                  JR   nz,expect1   ; If comparison fails,jump to expect1
+4077   E9                     JP   (hl)   ; If comparison succeeds,jump to the return address
+4078                EXPECT1:      
+4078   CD 98 05               CALL   print   ; Print the failure message
+407B   46 61 69 6C 65 64 21 00 .CSTR   "Failed!"   
+4083   2A 49 40               LD   hl,(tbText)   ; Load the address of the test text
+4086   CD AC 05               CALL   printZStr   ; Print the test text
+4089   76                     HALT      ; Halt the program
+408A                             ; *****************************************************************************
+408A                             ; Routine: expectOpData
+408A                             ; 
+408A                             ; Purpose:
+408A                             ;    Validate the sequence of opcode and operands against expected values.
+408A                             ;    Print error messages if any mismatch occurs and jump to the next handler.
+408A                             ; 
+408A                             ; Inputs:
+408A                             ;    DE - Points to the expected op data
+408A                             ;    HL - Points to the actual op data
+408A                             ; 
+408A                             ; Outputs:
+408A                             ;    Updates DE and HL as it processes each byte in the sequences.
+408A                             ; 
+408A                             ; Registers Destroyed:
+408A                             ;    A,DE,HL
+408A                             ; *****************************************************************************
+408A                EXPECTOPDATA:      
+408A   D1                     POP   de   ; Load DE with the return address pointing to the actual opcode/operand sequence
+408B   21 91 31               LD   hl,vOpcode   ; Load HL with the address of the expected opcode/operand sequence
+408E   CD C6 40               CALL   expectOpItem   ; Compare actual and expected opcode
+4091   57 72 6F 6E 67 20 6F 70 63 6F 64 65 00 .CSTR   "Wrong opcode"   ; Error message if the opcode does not match
+409E   CD C6 40               CALL   expectOpItem   ; Compare actual and expected first operand
+40A1   57 72 6F 6E 67 20 6F 70 65 72 61 6E 64 20 31 00 .CSTR   "Wrong operand 1"   ; Error message if the first operand does not match
+40B1   CD C6 40               CALL   expectOpItem   ; Compare actual and expected second operand
+40B4   57 72 6F 6E 67 20 6F 70 65 72 61 6E 64 20 32 00 .CSTR   "Wrong operand 2"   ; Error message if the second operand does not match
+40C4   EB                     EX   de,hl   
+40C5   E9                     JP   (hl)   ; Jump to the address after expected op data
+40C6                             ; *****************************************************************************
+40C6                             ; Routine: expectOpItem
+40C6                             ; 
+40C6                             ; Purpose:
+40C6                             ;    Compare the actual and expected opcode/operand byte and handle mismatches.
+40C6                             ; 
+40C6                             ; Inputs:
+40C6                             ;    DE - Points to the expected byte.
+40C6                             ;    HL - Points to the actual byte.
+40C6                             ; 
+40C6                             ; Outputs:
+40C6                             ;    Increments DE and HL to the next byte in the sequences.
+40C6                             ;    Prints error messages if any mismatch occurs.
+40C6                             ; 
+40C6                             ; Registers Destroyed:
+40C6                             ;    A,DE,HL
+40C6                             ; *****************************************************************************
+40C6                EXPECTOPITEM:      
+40C6   1A                     LD   a,(de)   ; Load the expected byte into A from DE
+40C7   BE                     CP   (hl)   ; Compare expected with actual
+40C8   13                     INC   de   ; Move DE to point to next expected byte
+40C9   23                     INC   hl   ; Move HL to point to next actual byte
+40CA   20 07                  JR   nz,expectOpItem1   ; Return if the bytes match
+40CC   E3                     EX   (sp),hl   ; HL = expected string to skip (sp) = actual*
+40CD   CD 38 41               CALL   skipZStr   ; Skip the message string
+40D0   23                     INC   hl   ; Move to the next byte after the null terminator
+40D1   E3                     EX   (sp),hl   ; HL = actual* (SP) = expected string to skip
+40D2   C9                     RET      ; return after message string
+40D3                EXPECTOPITEM1:      
+40D3   CD 8C 05               CALL   crlf   
+40D6   CD 8C 05               CALL   crlf   
+40D9   2A 47 40               LD   hl,(tbDesc)   ; Load the address of the test text
+40DC   CD AC 05               CALL   printZStr   ; Print the test description
+40DF   CD 8C 05               CALL   crlf   
+40E2   CD 8C 05               CALL   crlf   
+40E5   CD 98 05               CALL   print   ; Print error messages if the bytes do not match
+40E8   45 78 70 65 63 74 65 64 3A 20 00 .CSTR   "Expected: "   ; Print "Expected"
+40F3   1A                     LD   a,(de)   ; Load the expected byte into A for printing
+40F4   CD 24 41               CALL   printHex2   ; Print the expected byte in hexadecimal
+40F7   CD 8C 05               CALL   crlf   
+40FA   CD 98 05               CALL   print   ; Print "Received"
+40FD   41 63 74 75 61 6C 3A 20 00 .CSTR   "Actual: "   
+4106   7E                     LD   a,(hl)   ; Load the actual byte into A for printing
+4107   CD 24 41               CALL   printHex2   ; Print the actual byte in hexadecimal
+410A   CD 8C 05               CALL   crlf   
+410D   76                     HALT      ; Halt the program
+410E                             ; *****************************************************************************
+410E                             ; Routine: testGetCharImpl
+410E                             ; 
+410E                             ; Purpose:
+410E                             ;    Retrieves the next character from the test text.
+410E                             ; 
+410E                             ; Inputs:
+410E                             ;    tbPtr - Pointer to the current position in the test text
+410E                             ; 
+410E                             ; Outputs:
+410E                             ;    A - The next character from the test text
+410E                             ; 
+410E                             ; Registers Destroyed:
+410E                             ;    A,HL
+410E                             ; *****************************************************************************
+410E                TESTGETCHARIMPL:      
+410E   E5                     PUSH   hl   ; Save HL register
+410F   2A 4B 40               LD   hl,(tbPtr)   ; Load the current pointer from tbPtr
+4112   7E                     LD   a,(hl)   ; Load the next character from the test text
+4113   23                     INC   hl   ; Move to the next character
+4114   22 4B 40               LD   (tbPtr),hl   ; Update tbPtr with the new pointer
+4117   E1                     POP   hl   ; Restore HL register
+4118   C9                     RET      ; Return with the character in A
+4119                             ; *****************************************************************************
+4119                             ; Routine: printHex
+4119                             ; 
+4119                             ; Purpose:
+4119                             ;    Displays the 16-bit value in the HL register as a hexadecimal number.
+4119                             ; 
+4119                             ; Inputs:
+4119                             ;    HL - The 16-bit value to be displayed.
+4119                             ; 
+4119                             ; Outputs:
+4119                             ;    None
+4119                             ; 
+4119                             ; Registers Destroyed:
+4119                             ;    A,C
+4119                             ; *****************************************************************************
+4119                PRINTHEX:      
+4119   C5                     PUSH   bc   ; Preserve the BC register pair
+411A   7C                     LD   a,h   ; Load the high byte of HL into A
+411B   CD 24 41               CALL   printHex2   ; Print the high byte as hex
+411E   7D                     LD   a,l   ; Load the low byte of HL into A
+411F   CD 24 41               CALL   printHex2   ; Print the low byte as hex
+4122   C1                     POP   bc   ; Restore the BC register pair
+4123   C9                     RET      ; Return from the routine
+4124                             ; *****************************************************************************
+4124                             ; Routine: printHex2
+4124                             ; 
+4124                             ; Purpose:
+4124                             ;    Prints a single byte in hexadecimal format by printing its high and low nibbles.
+4124                             ; 
+4124                             ; Inputs:
+4124                             ;    A - The byte to be printed.
+4124                             ; 
+4124                             ; Outputs:
+4124                             ;    None.
+4124                             ; 
+4124                             ; Registers Destroyed:
+4124                             ;    A,C
+4124                             ; *****************************************************************************
+4124                PRINTHEX2:      
+4124   4F                     LD   c,a   ; Copy the value in A to C
+4125   1F                     RRA      ; Shift the high nibble to the low nibble
+4126   1F                     RRA      
+4127   1F                     RRA      
+4128   1F                     RRA      
+4129   CD 2D 41               CALL   printHex3   ; Print the high nibble as hex
+412C   79                     LD   a,c   ; Restore the original value to A
+412D                PRINTHEX3:      
+412D   E6 0F                  AND   0x0F   ; Mask out the upper nibble
+412F   C6 90                  ADD   a,0x90   ; Add 0x90 to adjust for the ASCII range
+4131   27                     DAA      ; Decimal adjust A to get the correct ASCII value
+4132   CE 40                  ADC   a,0x40   ; Add 0x40 to get the ASCII character for 0-9/A-F
+4134   27                     DAA      ; Decimal adjust A to get the correct ASCII value
+4135   C3 87 00               JP   putchar   ; Jump to the putchar routine to display the character
+4138                             ; 
+4138                             ; *****************************************************************************
+4138                             ; Routine: skipZStr
+4138                             ; 
+4138                             ; Purpose:
+4138                             ;    Skips over a null-terminated string in memory,advancing the HL register
+4138                             ;    to the character following the null terminator.
+4138                             ; 
+4138                             ; Inputs:
+4138                             ;    HL - Points to the start of the string to skip.
+4138                             ; 
+4138                             ; Outputs:
+4138                             ;    HL - Points to the character immediately after the null terminator.
+4138                             ; 
+4138                             ; Registers Destroyed:
+4138                             ;    A
+4138                             ; *****************************************************************************
+4138                SKIPZSTR:      
+4138   18 01                  JR   skipZStr2   ; Jump to the character loading step
+413A                SKIPZSTR1:      
+413A   23                     INC   hl   ; Move to the next character
+413B                SKIPZSTR2:      
+413B   7E                     LD   a,(hl)   ; Load the current character
+413C   B7                     OR   a   ; Check if the character is null
+413D   20 FB                  JR   nz,skipZStr1   ; If not null,continue to the next character
+413F   C9                     RET      ; Return when a null character is found
+4140                             ; call test
+4140                             ; ; .db "label1: LD A,42;comment\r\n"
+4140                             ; ; .db "halt"
+4140                             ; .db 0
 
 
 ROMSTART:           0000 DEFINED AT LINE 1 IN constants.asm
@@ -2487,7 +2506,6 @@ DAA_:               0062 DEFINED AT LINE 84 IN constants.asm
 DI_:                0063 DEFINED AT LINE 85 IN constants.asm
 EI_:                0064 DEFINED AT LINE 86 IN constants.asm
 HALT_:              0065 DEFINED AT LINE 87 IN constants.asm
-                    > USED AT LINE 34
 NOP_:               0066 DEFINED AT LINE 88 IN constants.asm
 RLCA_:              0067 DEFINED AT LINE 89 IN constants.asm
 RST_:               0088 DEFINED AT LINE 90 IN constants.asm
@@ -2503,6 +2521,7 @@ IM_:                0086 DEFINED AT LINE 101 IN constants.asm
 IN_:                0087 DEFINED AT LINE 102 IN constants.asm
 INC_:               0088 DEFINED AT LINE 103 IN constants.asm
 JP_:                0089 DEFINED AT LINE 104 IN constants.asm
+                    > USED AT LINE 50
 JR_:                008A DEFINED AT LINE 105 IN constants.asm
 LD_:                008B DEFINED AT LINE 106 IN constants.asm
 NEG_:               008C DEFINED AT LINE 107 IN constants.asm
@@ -2654,7 +2673,7 @@ PUTCHAR:            0087 DEFINED AT LINE 451 IN IOSerial.asm
                     > USED AT LINE 1099 IN MAIN.asm
                     > USED AT LINE 1261 IN MAIN.asm
                     > USED AT LINE 1286 IN MAIN.asm
-                    > USED AT LINE 253 IN test.lib.asm
+                    > USED AT LINE 258 IN test.lib.asm
 RESET:              008D DEFINED AT LINE 457 IN IOSerial.asm
                     > USED AT LINE 114 IN IOSerial.asm
 START:              0180 DEFINED AT LINE 37 IN MAIN.asm
@@ -2876,18 +2895,23 @@ REWINDCHAR:         0579 DEFINED AT LINE 1143 IN MAIN.asm
                     > USED AT LINE 945 IN MAIN.asm
 PROMPT:             0583 DEFINED AT LINE 1167 IN MAIN.asm
 CRLF:               058C DEFINED AT LINE 1188 IN MAIN.asm
-ERROR:              0593 DEFINED AT LINE 1209 IN MAIN.asm
+                    > USED AT LINE 159 IN test.lib.asm
+                    > USED AT LINE 160 IN test.lib.asm
+                    > USED AT LINE 163 IN test.lib.asm
+                    > USED AT LINE 164 IN test.lib.asm
                     > USED AT LINE 169 IN test.lib.asm
+                    > USED AT LINE 174 IN test.lib.asm
+ERROR:              0593 DEFINED AT LINE 1209 IN MAIN.asm
 PRINT:              0598 DEFINED AT LINE 1230 IN MAIN.asm
                     > USED AT LINE 40 IN MAIN.asm
                     > USED AT LINE 95 IN MAIN.asm
                     > USED AT LINE 1094 IN MAIN.asm
                     > USED AT LINE 1168 IN MAIN.asm
                     > USED AT LINE 1189 IN MAIN.asm
-                    > USED AT LINE 39
+                    > USED AT LINE 60
                     > USED AT LINE 88 IN test.lib.asm
-                    > USED AT LINE 159 IN test.lib.asm
-                    > USED AT LINE 164 IN test.lib.asm
+                    > USED AT LINE 165 IN test.lib.asm
+                    > USED AT LINE 170 IN test.lib.asm
 PRINTSTR:           059F DEFINED AT LINE 1253 IN MAIN.asm
                     > USED AT LINE 1211 IN MAIN.asm
 PRINTSTR1:          05A4 DEFINED AT LINE 1259 IN MAIN.asm
@@ -2895,6 +2919,7 @@ PRINTSTR1:          05A4 DEFINED AT LINE 1259 IN MAIN.asm
 PRINTZSTR:          05AC DEFINED AT LINE 1282 IN MAIN.asm
                     > USED AT LINE 1232 IN MAIN.asm
                     > USED AT LINE 91 IN test.lib.asm
+                    > USED AT LINE 162 IN test.lib.asm
 PRINTZSTR1:         05AE DEFINED AT LINE 1285 IN MAIN.asm
                     > USED AT LINE 1292 IN MAIN.asm
 PRINTZSTR2:         05B2 DEFINED AT LINE 1289 IN MAIN.asm
@@ -3033,45 +3058,46 @@ ASSEMBLY:           32AE DEFINED AT LINE 40 IN ram.asm
                     > USED AT LINE 82 IN test.lib.asm
 TESTSSTART:         4000 DEFINED AT LINE 14
                     > USED AT LINE 6
-TBDESC:             4043 DEFINED AT LINE 5 IN test.lib.asm
+TBDESC:             4047 DEFINED AT LINE 5 IN test.lib.asm
                     > USED AT LINE 30 IN test.lib.asm
-TBTEXT:             4045 DEFINED AT LINE 7 IN test.lib.asm
+                    > USED AT LINE 161 IN test.lib.asm
+TBTEXT:             4049 DEFINED AT LINE 7 IN test.lib.asm
                     > USED AT LINE 53 IN test.lib.asm
                     > USED AT LINE 90 IN test.lib.asm
-TBPTR:              4047 DEFINED AT LINE 9 IN test.lib.asm
+TBPTR:              404B DEFINED AT LINE 9 IN test.lib.asm
                     > USED AT LINE 54 IN test.lib.asm
-                    > USED AT LINE 189 IN test.lib.asm
-                    > USED AT LINE 192 IN test.lib.asm
-DESCRIBE:           4049 DEFINED AT LINE 28 IN test.lib.asm
-                    > USED AT LINE 26
-TEST:               4052 DEFINED AT LINE 51 IN test.lib.asm
-                    > USED AT LINE 29
-EXPECT:             406A DEFINED AT LINE 80 IN test.lib.asm
-EXPECT1:            4074 DEFINED AT LINE 87 IN test.lib.asm
+                    > USED AT LINE 195 IN test.lib.asm
+                    > USED AT LINE 198 IN test.lib.asm
+DESCRIBE:           404D DEFINED AT LINE 28 IN test.lib.asm
+                    > USED AT LINE 42
+TEST:               4056 DEFINED AT LINE 51 IN test.lib.asm
+                    > USED AT LINE 45
+EXPECT:             406E DEFINED AT LINE 80 IN test.lib.asm
+EXPECT1:            4078 DEFINED AT LINE 87 IN test.lib.asm
                     > USED AT LINE 84 IN test.lib.asm
-EXPECTOPDATA:       4086 DEFINED AT LINE 112 IN test.lib.asm
-                    > USED AT LINE 33
-EXPECTOPITEM:       40C2 DEFINED AT LINE 146 IN test.lib.asm
+EXPECTOPDATA:       408A DEFINED AT LINE 112 IN test.lib.asm
+                    > USED AT LINE 49
+EXPECTOPITEM:       40C6 DEFINED AT LINE 146 IN test.lib.asm
                     > USED AT LINE 116 IN test.lib.asm
                     > USED AT LINE 119 IN test.lib.asm
                     > USED AT LINE 122 IN test.lib.asm
-EXPECTOPITEM1:      40CF DEFINED AT LINE 158 IN test.lib.asm
+EXPECTOPITEM1:      40D3 DEFINED AT LINE 158 IN test.lib.asm
                     > USED AT LINE 151 IN test.lib.asm
-TESTGETCHARIMPL:    40F0 DEFINED AT LINE 187 IN test.lib.asm
+TESTGETCHARIMPL:    410E DEFINED AT LINE 193 IN test.lib.asm
                     > USED AT LINE 59 IN test.lib.asm
-PRINTHEX:           40FB DEFINED AT LINE 212 IN test.lib.asm
-PRINTHEX2:          4106 DEFINED AT LINE 237 IN test.lib.asm
-                    > USED AT LINE 163 IN test.lib.asm
+PRINTHEX:           4119 DEFINED AT LINE 218 IN test.lib.asm
+PRINTHEX2:          4124 DEFINED AT LINE 243 IN test.lib.asm
                     > USED AT LINE 168 IN test.lib.asm
-                    > USED AT LINE 215 IN test.lib.asm
-                    > USED AT LINE 217 IN test.lib.asm
-PRINTHEX3:          4110 DEFINED AT LINE 247 IN test.lib.asm
-                    > USED AT LINE 243 IN test.lib.asm
-SKIPZSTR:           411B DEFINED AT LINE 272 IN test.lib.asm
+                    > USED AT LINE 173 IN test.lib.asm
+                    > USED AT LINE 221 IN test.lib.asm
+                    > USED AT LINE 223 IN test.lib.asm
+PRINTHEX3:          412D DEFINED AT LINE 252 IN test.lib.asm
+                    > USED AT LINE 249 IN test.lib.asm
+SKIPZSTR:           4138 DEFINED AT LINE 277 IN test.lib.asm
                     > USED AT LINE 31 IN test.lib.asm
                     > USED AT LINE 55 IN test.lib.asm
                     > USED AT LINE 153 IN test.lib.asm
-SKIPZSTR1:          411D DEFINED AT LINE 275 IN test.lib.asm
-                    > USED AT LINE 281 IN test.lib.asm
-SKIPZSTR2:          411E DEFINED AT LINE 278 IN test.lib.asm
-                    > USED AT LINE 273 IN test.lib.asm
+SKIPZSTR1:          413A DEFINED AT LINE 280 IN test.lib.asm
+                    > USED AT LINE 286 IN test.lib.asm
+SKIPZSTR2:          413B DEFINED AT LINE 283 IN test.lib.asm
+                    > USED AT LINE 278 IN test.lib.asm

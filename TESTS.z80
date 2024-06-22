@@ -14,6 +14,8 @@
 testsStart:
     ld sp,STACK
 
+    ; ------------------------------------------------------------
+
     ; call describe
     ; .cstr "It should do nothing"
     
@@ -23,16 +25,35 @@ testsStart:
     ; call expect
     ; .db 0
 
+    ; ------------------------------------------------------------
+
+    ; call describe
+    ; .cstr "parse opcode without operands"
+    
+    ; call test
+    ; .db "halt"
+    ; .db 0
+
+    ; call expectOpData
+    ; .db HALT_, -1, -1
+
+    ; ------------------------------------------------------------
+
     call describe
-    .cstr "It should assemble one instruction"
+    .cstr "parse opcode with an immediate operand"
     
     call test
     .db "halt"
     .db 0
 
     call expectOpData
-    .db HALT_,-1,-1
+    .db JP_, -1, immed_
 
+    ; ------------------------------------------------------------
+
+
+
+    ; .cstr "It should assemble one instruction"
     ; call expect
     ; .db 01,$76
 
