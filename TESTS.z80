@@ -1,4 +1,4 @@
-    ; .engine mycomputer
+    .engine mycomputer
 
     .include "constants.asm"
     .include "IOSerial.asm"
@@ -30,20 +30,20 @@ testsStart:
     .db "halt"
     .db 0
 
-    call expectCode
-    .db HALT_, -1, -1
+    call expectOpData
+    .db HALT_,-1,-1
 
     ; call expect
-    ; .db 01, $76
+    ; .db 01,$76
 
     call print 
-    .cstr "Done!"
+    .cstr "\r\nDone!"
     
     halt
 
 .include "test.lib.asm"
 
     ; call test
-    ; ; .db "label1: LD A, 42;comment\r\n"
+    ; ; .db "label1: LD A,42;comment\r\n"
     ; ; .db "halt"
     ; .db 0

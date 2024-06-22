@@ -2,7 +2,7 @@
 
 .align $100
 
-BUFFER:     ds BUFFER_SIZE      ; line BUFFER, page aligned
+BUFFER:     ds BUFFER_SIZE      ; line BUFFER,page aligned
             ds $100
 STACK:                          ; grows down
 
