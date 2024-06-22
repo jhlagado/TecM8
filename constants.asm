@@ -11,7 +11,6 @@ ESC         .equ    27
 NO_MATCH    .equ    -1
 
 BUFFER_SIZE .equ    $80
-STRS_SIZE:  .equ    $100
 HEAP_SIZE:  .equ    $100
 
 tokens:

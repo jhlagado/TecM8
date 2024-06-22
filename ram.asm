@@ -13,10 +13,9 @@ vToken:     ds 1                ; BUFFER for pushed back token
 vTokenVal:  ds 2                ; BUFFER for pushed back token value
 vBufferPos: ds 2                ; pointer to char position into input BUFFER
 vAsmPtr:    ds 2                ; pointer to ASSEMBLY point
-vStrPtr:    ds 2                ; pointer to string STACK
-vSymPtr:    ds 2                ; pointer to symbol STACK
-vExprPtr:   ds 2                ; pointer to expression STACK
-vHeapPtr:   ds 2                ; pointer to expression STACK
+vSymPtr:    ds 2                ; pointer to last symbol
+vExprPtr:   ds 2                ; pointer to last expression
+vHeapPtr:   ds 2                ; pointer to Heap
 
 vOpcode     ds 1
 vOperand1   ds 1
@@ -37,6 +36,5 @@ NMIVEC:     ds 2
 GETCVEC:    ds 2                   
 PUTCVEC:    ds 2                   
 
-STRINGS:    ds STRS_SIZE             ; string heap - grows up
 HEAP:       ds HEAP_SIZE             ; expression heap - grows up
 ASSEMBLY:

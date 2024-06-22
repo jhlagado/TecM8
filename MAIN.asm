@@ -71,8 +71,6 @@ init:
     ld (vHeapPtr), hl   ; 
     ld hl, ASSEMBLY     ; vAsmPtr = ASSEMBLY
     ld (vAsmPtr), hl    ; 
-    ld hl, STRINGS      ; vStrPtr = STRINGS
-    ld (vStrPtr), hl    ; 
     ret                 
 
 ; *****************************************************************************
@@ -447,9 +445,9 @@ nextToken6:
 
 nextToken7:    
     call rewindChar             ; Push back the character
-    ld (vStrPtr), hl            ; Restore string heap pointer to previous location
+    ld (vHeapPtr), hl           ; Restore string heap pointer to previous location
     call searchOpcode
-    jr nc, nextToken8
+    jr nz, nextToken8
     ld l, a                     ; hl = opcode value
     ld h, 0
     ld a, OPCODE_               ; Return with OPCODE token
@@ -457,7 +455,7 @@ nextToken7:
 
 nextToken8:
     call searchOpElem
-    jr nc, nextToken9
+    jr nz, nextToken9
     ld l, a                     ; hl = op element value
     ld h, 0
     ld a, OPELEM_              ; Return with OPELEM token
@@ -466,7 +464,7 @@ nextToken8:
 nextToken9:
     ld de, directives           ; List of directives to search
     call searchStr
-    jr nc, nextToken10
+    jr nz, nextToken10
     ld l, a                     ; hl = directive value
     ld h, 0
     ld a, DIRECT_               ; Return with DIRECT token
@@ -551,7 +549,7 @@ pushBackToken:
 ; 
 ; Inputs:
 ;    A - Current character read from the input stream
-;    vStrPtr - Address of the top of STRINGS heap pointer
+;    vHeapPtr - Address of the top of heap pointer
 ; 
 ; Outputs:
 ;    A - last character read from the input stream
@@ -562,7 +560,7 @@ pushBackToken:
 ; *****************************************************************************
 
 ident:
-    ld hl, (vStrPtr)        ; Load the address of the top of STRINGS heap
+    ld hl, (vHeapPtr)       ; Load the address of the top of STRINGS heap
     push hl                 ; save start of string
     inc hl                  ; Move to the next byte to skip the length byte
 ident1:
@@ -576,7 +574,7 @@ ident1:
     call isAlphanum         ; Check if the character is alphanumeric
     jr c, ident1            ; If not alphanumeric, jump to ident3
 ident3:
-    ld (vStrPtr), hl        ; Update the top of STRINGS heap pointer
+    ld (vHeapPtr), hl       ; Update the top of STRINGS heap pointer
     pop de                  ; restore start of string into de 
     or a                    ; Clear carry
     sbc hl, de              ; Calculate the length of the string (HL = length, DE = string)
@@ -596,7 +594,7 @@ ident3:
 ;    DE - Points to the start of the list of STRINGS.
 ; 
 ; Outputs:
-;    CF - True if match, false otherwise.
+;    ZF - True if match, false otherwise.
 ;    A - Index of the matching string if a match is found, or -1 if no match 
 ;        is found.
 ;    HL - Points to the string to search for.
@@ -606,39 +604,29 @@ ident3:
 ; *****************************************************************************
 
 searchStr:
-    ex de, hl             ; DE = search string, HL = string list
-    xor a                 ; Initialize index counter, ZF = true, CF = false
-    ex af, af'            ; Exchange AF with AF prime
+    ld b, 0               ; init b with index 0 
 
 searchStr1:
-    push de               ; Store search string
-    push hl               ; Store current string
-    call compareStr
-    jr nz, searchStr
-    pop hl                ; Discard current string
-    pop hl                ; HL = search string
-    ex af, af'            ; Load index of match
-    ccf                   ; If match, CF = true
-    ret
+    call compareStr       ; compare strings    
+    jr nz, searchStr3
+    ld a, b               ; Load index of match
+    ret                   ; ZF = true
 
 searchStr3:
-    pop hl                ; Restore current string
-    pop de                ; Restore search string
-    ld a, (hl)            ; Load length of current string
+    ld a, (de)            ; Load length of current string
     inc a                 ; A = length byte plus length of string
-    ld c, a               ; BC = A
-    ld b, 0
-    add hl, bc            ; HL += BC, move to next string
-    push de               ; Store search string
-    push hl               ; Store current string
-    ex af, af'            ; Increment index counter, ZF = false, CF = false
-    inc a
-    ex af, af'
-    ld a, (hl)            ; A = length of next string
+    
+    add a, e              ; HL += A, move HL to point to next string     
+    ld e, a
+    ld a, 0
+    adc a, d
+    ld d, a
+    
+    inc b                 ; increase index
+    ld a, (de)            ; A = length of next string
     or a                  ; If A != 0, continue searching
     jr nz, searchStr1
     dec a                 ; A = NO_MATCH (i.e., -1), ZF = false
-    ccf                   ; CF = false
     ret
    
 ; *****************************************************************************
@@ -651,7 +639,7 @@ searchStr3:
 ;    HL - Points to the string to search for.
 ; 
 ; Outputs:
-;    CF - Set if a match is found, cleared otherwise.
+;    ZF - Set if a match is found, cleared otherwise.
 ;    A  - Contains the index of the matching opcode if a match is found,
 ;         or the last checked index if no match is found.
 ; 
@@ -662,29 +650,29 @@ searchStr3:
 searchOpcode:
     ld de, alu_opcodes          ; Point DE to the list of ALU opcodes
     call searchStr              ; Search for the string in ALU opcodes
-    ret c                       ; If match found (CF set), return
+    ret z                       ; If match found (ZF set), return
 
     ld de, rot_opcodes          ; Point DE to the list of ROT opcodes
     call searchStr              ; Search for the string in ROT opcodes
     set 5, a                    ; Set bit 5 in A to indicate ROT opcodes
-    ret c                       ; If match found (CF set), return
+    ret z                       ; If match found (ZF set), return
 
     ld de, bli_opcodes          ; Point DE to the list of BLI opcodes
     call searchStr              ; Search for the string in BLI opcodes
     set 6, a                    ; Set bit 6 in A to indicate BLI opcodes
-    ret c                       ; If match found (CF set), return
+    ret z                       ; If match found (ZF set), return
 
     ld de, gen1_opcodes         ; Point DE to the list of general opcodes (set 1)
     call searchStr              ; Search for the string in general opcodes
     set 5, a                    ; Set bits 5 & 6 in A to indicate general opcodes (set 1)
     set 6, a                    
-    ret c                       ; If match found (CF set), return
+    ret z                       ; If match found (ZF set), return
 
     ld de, gen2_opcodes         ; Point DE to the list of general opcodes (set 2)
     call searchStr              ; Search for the string in general opcodes
     set 7, a                    ; Set bit 7 in A to indicate general opcodes (set 2)
 
-    ret                         ; Return if no match is found
+    ret                         ; Return ZF = match
 
 ; *****************************************************************************
 ; Routine: searchOpElem
@@ -699,7 +687,7 @@ searchOpcode:
 ; Outputs:
 ;    A  - The index of the matching op element if a match is found, or -1 if no
 ;         match is found.
-;    CF - Carry flag is set if a match is found.
+;    ZF - Set if a match is found, cleared otherwise.
 ;
 ; Registers Destroyed:
 ;    A, DE, HL
@@ -712,18 +700,18 @@ searchOpcode:
 searchOpElem:
     ld de, reg8                 ; Point DE to the list of 8-bit register operands
     call searchStr              ; Search for the string in reg8 operands
-    ret c                       ; If match found (CF set), return
+    ret z                       ; If match found (ZF set), return
 
     ld de, reg16                ; Point DE to the list of 16-bit register operands
     call searchStr              ; Search for the string in reg16 operands
     set 3, a                    ; Set bit 4 in A to indicate a register operand
-    ret c                       ; If match found (CF set), return
+    ret z                       ; If match found (ZF set), return
 
     ld de, flags                ; Point DE to the list of flag operands
     call searchStr              ; Search for the string in flag operands
     set 4, a                    ; Set bit 3 in A to indicate flag operand
 
-    ret                         ; Return if no match is found
+    ret                         ; Return ZF = match
 
 ; *****************************************************************************
 ; Routine: compareStr
@@ -741,24 +729,30 @@ searchOpElem:
 ;    ZF - Set if the strings are equal
 ; 
 ; Registers Destroyed:
-;    A, B, DE, HL
+;    A
 ; *****************************************************************************
 
 compareStr:
-    ld a, (de)            ; Load length of search string
-    ld b, a               ; Copy length to B for looping
-    inc b                 ; Increase to include length byte     
+    push bc                     ; save BC, DE, HL    
+    push de
+    push hl
+    ld a, (de)                  ; Load length of search string
+    ld b, a                     ; Copy length to B for looping
+    inc b                       ; Increase to include length byte     
 
 compareStr2:
-    ld a, (de)            ; Load next character from search string
-    cp (hl)               ; Compare with next character in current string
-    ret nz                ; Return if characters are not equal
-    inc de                ; Move to next character in search string
-    inc hl                ; Move to next character in current string
-    djnz compareStr2      ; Loop until all characters compared or mismatch
+    ld a, (de)                  ; Load next character from search string
+    cp (hl)                     ; Compare with next character in current string
+    jr nz, compareStr3          ; break if characters are not equal
+    inc de                      ; Move to next character in search string
+    inc hl                      ; Move to next character in current string
+    djnz compareStr2            ; Loop until all characters compared or mismatch
 
 compareStr3:
-    ret                   ; Return with ZF set if strings are equal
+    pop hl                      ; restore BC, DE, HL
+    pop de
+    pop bc
+    ret                         ; Return with ZF set if strings are equal
 
 ; *****************************************************************************
 ; Routine: isIndexReg
@@ -827,12 +821,16 @@ isAlphaNum:
 ; *****************************************************************************
 
 isAlpha:
+    cp "z"+1          ; Compare with 'Z' + 1
+    ret nc            ; Return if it's not alphabetic, no carry 
     cp "a"            ; Compare with lowercase 'a'
     jr c, isAlpha1    ; Jump if it's lower than 'a'
-    sub $20           ; Convert lowercase to uppercase
+    sub $20           ; It's lowercase alpha so convert lowercase to uppercase
+    scf               ; no carry so set carry flag    
+    ret
 isAlpha1:
     cp "Z"+1          ; Compare with 'Z' + 1
-    ret nc            ; Return if it's not alphabetic
+    ret nc            ; Return if it's not alphabetic, no carry
     cp "A"            ; Compare with 'A'
     ccf               ; Invert CF to set it if it's alphabetic
     ret               ; Return
@@ -1104,12 +1102,12 @@ nextLine7:
 ; *****************************************************************************
 
 rewindChar:
-    ld hl, vBufferPos     ; Load the address of BUFFER position variable
-    ld a, (hl)            ; Load the current position in the BUFFER into A
-    or a                  ; Check if the BUFFER position is zero
-    ret z                 ; If zero, nothing to push back, return
-    dec (hl)              ; Decrement the BUFFER position
-    ret                   ; Return
+    ld a, (vBufferPos)          ; Load the current position in the BUFFER into A
+    or a                        ; Check if the BUFFER position is zero
+    ret z                       ; If zero, nothing to push back, return
+    dec a                       ; Decrement the BUFFER position
+    ld (vBufferPos), a
+    ret                         
 
 ; *****************************************************************************
 ; Routine: prompt
@@ -1129,8 +1127,8 @@ rewindChar:
 
 prompt:                            
     call print                  ; Print the null-terminated string (prompt message)
-    .cstr "\r\n> "               ; Define the prompt message
-    ret                          ; Return to the caller
+    .cstr "\r\n> "              ; Define the prompt message
+    ret                         ; Return to the caller
 
 ; *****************************************************************************
 ; Routine: crlf
