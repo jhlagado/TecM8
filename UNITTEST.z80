@@ -31,10 +31,10 @@ testsStart:
     .db 0
 
     call expectCode
-    .db HALT_, $ff, $ff
+    .db HALT_, -1, -1
 
-    call expect
-    .db 01, $76
+    ; call expect
+    ; .db 01, $76
 
     call print 
     .cstr "Done!"

@@ -122,11 +122,10 @@ parseError:
 statementList:
     call nextToken              ; Get the next token
     call statement              ; Parse a statement
-    cp "\n"
-    jr nz, parseError
-    call nextToken              ; Get the next token
     cp EOF_                     ; Check if it's the end of file
     ret z                       ; If yes, return
+    cp NEWLN_
+    jr nz, parseError
     jr statementList            ; Repeat for the next statement
 
 ; *****************************************************************************
@@ -157,7 +156,9 @@ statement:
     ld (vOpDisp), a
     pop af                      ; restore token
 
-    cp "\n"
+    cp EOF_
+    ret z
+    cp NEWLN_
     ret z
     cp LABEL_                   ; Check if it's a label
     jr nz, statement1           ; If not, jump to statement10
@@ -314,11 +315,13 @@ expression2:
     jr expression1          ; Repeat the main loop
 
 expression3:
-    cp ")"                  ; Check if the end of the expression
+    cp RPAREN_              ; Check if the end of the expression
     jr z, expression4
-    cp ","                  
+    cp COMMA_                  
     jr z, expression4
-    cp "\n"                 
+    cp NEWLN_                 
+    jr z, expression4
+    cp EOF_                 
     jr nz, expression1
 
 expression4:
@@ -405,7 +408,6 @@ nextToken1:
     jr z, nextToken1            ; If yes, skip it and get the next character
     cp EOF                      ; Is it null (end of input)?
     jr nz, nextToken2           ; If not, continue to the next check
-nextToken1a:
     ld a, EOF_                  ; If yes, return with EOF token
     ret
 
@@ -536,8 +538,7 @@ pushBackToken:
     ld (vToken), a              ; push back the token
     ld (vTokenVal), hl          ; push back the token value
     ret                         
-   
-
+  
 ; *****************************************************************************
 ; Routine: ident
 ; 
@@ -583,69 +584,6 @@ ident3:
     ex de, hl               ; Swap DE and HL (E = length, HL = string)
     ld (hl), e              ; Store the length at the beginning of the string BUFFER
     ret                     
-
-; ; *****************************************************************************
-; ; Routine: expr
-; ; 
-; ; Purpose:
-; ;    Collects a string until it reaches a right parenthesis, comma, semicolon,
-; ;    or newline character. Keeps track of parentheses to ensure correct ending
-; ;    of the expression.
-; ; 
-; ; Inputs:
-; ;    None
-; ; 
-; ; Outputs:
-; ;    HL - Points to the collected string.
-; ;    A - Contains the length of the collected string.
-; ; 
-; ; Registers Destroyed:
-; ;    A, C, D, E, HL
-; ; *****************************************************************************
-
-; expr:
-;     ld hl, (vStrPtr)        ; Load the address of the top of STRINGS heap
-;     ld de, hl               ; Copy it to DE (DE = HL = top of STRINGS heap)
-;     inc hl                  ; Move to the next byte to skip the length byte
-;     ld c, 1                 ; Initialize parenthesis count to 1
-; expr1:
-;     ld (hl), a              ; Write the current character to the string BUFFER
-;     inc hl                  ; Move to the next position in the BUFFER
-;     call nextChar           ; Get the next character from the input stream
-;     cp '('                  ; Compare with left parenthesis character
-;     jr z, expr2             ; If left parenthesis, increase count
-;     cp ')'                  ; Compare with right parenthesis character
-;     jr z, expr3             ; If right parenthesis, decrease count
-;     cp ','                  ; Compare with comma character
-;     jr z, expr4             ; If comma, check if parentheses count is zero
-;     cp ';'                  ; Compare with semicolon character
-;     jr z, expr4             ; If semicolon, check if parentheses count is zero
-;     cp '\n'                 ; Compare with newline character
-;     jr z, expr4             ; If newline, check if parentheses count is zero
-;     call isAlphanum         ; Check if the character is alphanumeric
-;     jr nc, expr4            ; If not alphanumeric, check if parentheses count is zero
-;     jr expr1                ; Repeat the process
-; expr2:
-;     inc c                   ; Increase parentheses count
-;     jr expr1                ; Repeat the process
-; expr3:
-;     dec c                   ; Decrease parentheses count
-;     jr nz, expr1            ; If not zero, continue collecting
-;     jr expr5                ; If zero, end collection
-; expr4:
-;     xor a
-;     cp c                    ; Check if parentheses count is zero
-;     jr nz, expr1            ; If not zero, continue collecting
-; expr5:
-;     call rewindChar         ; Rewind the input stream by one character
-;     ld (vStrPtr), hl        ; Update the top of STRINGS heap pointer
-;     or a                    ; Clear A register
-;     sbc hl, de              ; Calculate the length of the string (HL = length, DE = string)
-;     ex de, hl               ; Swap DE and HL (E = length, HL = string)
-;     ld (hl), e              ; Store the length at the beginning of the string BUFFER
-;     ld a, e                 ; Load the length into A
-;     ret                    
-
 
 ; *****************************************************************************
 ; Routine: searchStr
@@ -822,12 +760,6 @@ compareStr2:
 compareStr3:
     ret                   ; Return with ZF set if strings are equal
 
-isEndOfExpr:
-    cp b                         ; Compare operand with IX
-    ret z                        ; Return if equal (ZF is set)
-    cp "\n"                      ; Compare operand with IY
-    ret                          ; Return (ZF is set if equal, cleared otherwise)
-        
 ; *****************************************************************************
 ; Routine: isIndexReg
 ; 
@@ -1140,10 +1072,6 @@ nextLine5:
     ld a, "\n"
     jr nextLine6
 
-nextLine5a:
-    ld (hl),"\n"                ; insert newline before EOF
-    inc hl
-    
 nextLine6:
     ld (hl), a                  ; Store the character in the BUFFER
     inc hl                      ; Move to the next position in the BUFFER

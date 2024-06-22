@@ -58,9 +58,8 @@ test:
     call init                 ; Initialize the environment
     ld hl, testGetCharImpl    ; Load the address of testGetCharImpl
     ld (GETCVEC), hl          ; Set the GETCVEC to point to testGetCharImpl
-    call statementList        ; Execute the statementList
-    ret                       ; return to after skipped text    
-    
+    jp statementList        
+
 ; *****************************************************************************
 ; Routine: expect
 ; 
