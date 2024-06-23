@@ -32,11 +32,11 @@ PLUS_       .equ    "+"
 RPAREN_     .equ    ")"
 UNKNOWN_    .equ    "U"
 
-alu_    .equ    0x00
-rot_    .equ    0x20
-bli_    .equ    0x40
-gen1_   .equ    0x60
-gen2_   .equ    0x80
+alu_        .equ    0x00
+rot_        .equ    0x20
+bli_        .equ    0x40
+gen1_       .equ    0x60
+gen2_       .equ    0x80
 
 alu_idx:
 
@@ -121,12 +121,13 @@ RRCA_       .equ  23 | gen2_
 RRD_        .equ  24 | gen2_
 SET_        .equ  25 | gen2_
 
-reg_        .equ    0x00        ; A, B etc
-rp_         .equ    0x08        ; bit 3: register pair e.g. HL, DE
-flag_       .equ    0x10        ; bit 4: flag NZ etc
-immed_      .equ    0x20        ; bit 5: immediate 0xff or 0xffff
-mem_        .equ    0x40        ; bit 6: memory ref (HL) or (0xffff)
-idx_        .equ    0x80        ; bit 7: indexed (IX+dd)
+reg_        .equ    0x00        
+rp_         .equ    0x08        
+flag_       .equ    0x10        
+immed_      .equ    0x18        
+mem_        .equ    0x20        
+indX_       .equ    0x80        
+indY_       .equ    0xC0        
 
 reg8_idx:                       ; 8-bit registers
 
@@ -141,7 +142,7 @@ A_          .equ    7           ; A
 I_          .equ    8           ; I
 R_          .equ    9           ; R
 
-reg16_idx:                         ; 16-bit registers
+reg16_idx:                      ; 16-bit registers
 
 BC_         .equ    0 | rp_
 DE_         .equ    1 | rp_

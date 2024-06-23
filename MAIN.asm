@@ -236,7 +236,6 @@ directive:
 ;    None (uses the current token from a token stream)
 ; 
 ; Outputs:
-;    CF - if there is an operand
 ;    A - Contains operand information
 ; 
 ; Registers Destroyed:
@@ -245,7 +244,7 @@ directive:
 
 operand:
     cp OPELEM_                  ; Check if the token is an op element i.e. reg,rp or flag
-    ret z                       ; Return if it is
+    jr z,opElement
 
     cp LPAREN_                  ; Check if the token is a left parenthesis
     jr z,operand1               ; If so,handle as a memory reference
@@ -253,40 +252,99 @@ operand:
     call expression             ; Otherwise,treat as an expression
     ld (vOpExpr),hl             ; Store the result of the operand expression
     ld a,immed_                 ; Set A to indicate an immediate value
-
-    scf                         ; CF = true
     ret
 
 operand1:
     call nextToken              ; Memory reference. Get the next token
     cp OPELEM_                  ; Check if the next token is an op element
-    jr nz,operand2              ; If not,handle as an expression inside parentheses
-
-    ld a,l                      ; Otherwise,Load A with the lower byte of HL (operand)
-    call isIndexReg
-    jr nz,operand4
-
-    push af                     ; Save HL on the stack
-    call expression             ; Treat as an expression
-    ld (vOpDisp),hl             ; Store the result of the expression
-    pop af                      ; Restore HL from the stack
-    set 7,a                     ; Set A to indicate an indexed memory reference
-
-operand3:
-    set 6,a                     ; Otherwise,set A to indicate a memory reference
-    jr operand4
-
+    jr nz,operand2               ; If not,handle as an expression inside parentheses
+    call regPairIndirect
+    jr operand7
+    
 operand2:
     call expression             ; Treat as a new expression
     ld (vOpExpr),hl             ; Store the result of the expression
     ld a,immed_ | mem_          ; Set A to indicate an immediate memory reference
-    jr operand4
 
-operand4:
+operand7:
     call nextToken              ; Get the next token
     cp RPAREN_                  ; Check if the next token is a right parenthesis
     jp nz,parseError            ; If not,handle as a parse error
-    scf                         ; CF = true
+    ret
+
+; *****************************************************************************
+; Routine: opElement
+; 
+; Purpose:
+;    Parses the op element (registers, register pairs, flags) sets the
+;    appropriate flags based on the type of operand.
+; 
+; Inputs:
+;    HL - Points to the current token.
+; 
+; Outputs:
+;    A - Contains operand information.
+; 
+; Registers Destroyed:
+;    AF, HL
+; *****************************************************************************
+opElement:
+    ld a,l                      ; Otherwise,Load A with the lower byte of HL (operand)
+    cp IX_
+    jr nz,opElement2
+    ld a,HL_|indX_
+    ret
+
+opElement2:
+    cp IY_
+    ret nz
+    ld a,HL_|indY_
+    ret
+
+; *****************************************************************************
+; Routine: regPairIndirect
+; 
+; Purpose:
+;    Parses the register indirect memory address sets the
+;    appropriate flags based on the type of operand.
+; 
+; Inputs:
+;    HL - Points to the current token.
+; 
+; Outputs:
+;    A - Contains operand information.
+; 
+; Registers Destroyed:
+;    AF, HL
+; *****************************************************************************
+regPairIndirect:
+    ld a,l                      ; Otherwise,Load A with the lower byte of HL (operand)
+    cp HL_
+    jr nz,regPairIndirect2
+    ld a,MHL_|mem_
+    ret
+    
+regPairIndirect2:
+    cp IX_
+    jr nz,regPairIndirect3
+    ld a,MHL_|indX_|mem_
+    jr regPairIndirect5
+
+regPairIndirect3:
+    cp IY_
+    jr nz,regPairIndirect4
+    ld a,MHL_|indY_| mem_
+    jr regPairIndirect5
+
+regPairIndirect4:
+    or mem_                     ; Otherwise,set A to indicate a memory reference
+    ret
+
+regPairIndirect5:
+    push af                     ; Save HL on the stack
+    call expression             ; Treat as an expression
+    ld (vOpDisp),hl             ; Store the result of the expression
+    pop af                      ; Restore HL from the stack
     ret
 
 ; *****************************************************************************
@@ -649,7 +707,7 @@ searchStr3:
     ld a,(de)                   ; Load length of current string
     inc a                       ; A = length byte plus length of string
     
-    add a,e                     ; HL += A,move HL to point to next string     
+    add a,e                     ; DE += A, move DE to point to next string     
     ld e,a
     ld a,0
     adc a,d
@@ -733,12 +791,12 @@ searchOpElem:
 
     ld de,reg16                 ; Point DE to the list of 16-bit register operands
     call searchStr              ; Search for the string in reg16 operands
-    set 3,a                     ; Set bit 4 in A to indicate a register operand
+    or rp_                      ; Set bit 4 in A to indicate a register pair operand
     ret z                       ; If match found (ZF set),return
 
     ld de,flags                 ; Point DE to the list of flag operands
     call searchStr              ; Search for the string in flag operands
-    set 4,a                     ; Set bit 3 in A to indicate flag operand
+    or flag_                    ; Set bit 5 in A to indicate flag operand
 
     ret                         ; Return ZF = match
 
