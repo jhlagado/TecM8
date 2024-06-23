@@ -16,7 +16,6 @@
 
 	.ORG ROMSTART + $180	; 0+180 put TecM8 code from here	
 
-
 ; *****************************************************************************
 ; Routine: start
 ; 
@@ -35,11 +34,11 @@
 ; *****************************************************************************
 
 start:
-    ld sp,STACK        ; Initialize STACK pointer
-    call init           ; Call initialization routine
-    call print         ; Print TecM8 version information
+    ld sp,STACK                 ; Initialize STACK pointer
+    call init                   ; Call initialization routine
+    call print                  ; Print TecM8 version information
     .cstr "TecM8 0.0\r\n"
-    jp parse            ; Jump to the parsing routine
+    jp parse                    ; Jump to the parsing routine
 
 ; *****************************************************************************
 ; Routine: init
@@ -58,19 +57,19 @@ start:
 ; *****************************************************************************
 
 init:
-    ld hl,0            ; 
-    ld (vTokenVal),hl  ; vTokenVal = 0
-    ld (vSymPtr),hl    ; vSymPtr = 0
-    ld (vExprPtr),hl   ; vExprPtr = 0
-    xor a               ; 
-    ld (vToken),a      ; vToken = 0
-    ld (vBufferPos),a  ; vBufferPos = 0
-    ld a,"\n"          ; put new line into first char of buffer
-    ld (BUFFER),a       ; 
-    ld hl,HEAP         ; vHeapPtr = HEAP
-    ld (vHeapPtr),hl   ; 
-    ld hl,ASSEMBLY     ; vAsmPtr = ASSEMBLY
-    ld (vAsmPtr),hl    ; 
+    ld hl,0                      
+    ld (vTokenVal),hl           ; vTokenVal = 0
+    ld (vSymPtr),hl             ; vSymPtr = 0
+    ld (vExprPtr),hl            ; vExprPtr = 0
+    xor a                
+    ld (vToken),a               ; vToken = 0
+    ld (vBufferPos),a           ; vBufferPos = 0
+    ld a,"\n"                   ; put new line into first char of buffer
+    ld (BUFFER),a                
+    ld hl,HEAP                  ; vHeapPtr = HEAP
+    ld (vHeapPtr),hl             
+    ld hl,ASSEMBLY              ; vAsmPtr = ASSEMBLY
+    ld (vAsmPtr),hl    
     ret                 
 
 ; *****************************************************************************
@@ -157,48 +156,70 @@ statement:
     ld (vOpDisp),a
     pop af                      ; restore token
     cp LABEL_                   ; Check if it's a label
-    jr nz,statement1           ; If not,jump to statement10
+    jr nz,statement1            ; If not,jump to statement10
 
-    ld de,(vAsmPtr)            ; HL = symbol name DE = symbol value (assembler pointer)
+    ld de,(vAsmPtr)             ; HL = symbol name DE = symbol value (assembler pointer)
     call addSymbol              ; Add label to symbol list
     call nextToken              ; Get the next token
 
 statement1:
     cp OPCODE_                  ; Check if it's an opcode
-    jr z,instruction           ; Jump to parseInstruction routine
+    jr z,instruction            ; Jump to parseInstruction routine
 
     cp DIRECT_                  ; Check if it's a directive
     jr z,directive
 
     ret
 
+; *****************************************************************************
+; Routine: instruction
+; 
+; Purpose:
+;    Parses an instruction and its operands. Stores the opcode and operands 
+;    in the corresponding variables. Handles both single and double operand 
+;    instructions.
+; 
+; Inputs:
+;    HL - Points to the current token (opcode).
+; 
+; Outputs:
+;    vOpcode - Stores the parsed opcode.
+;    vOperand1 - Stores the first operand or -1 if there is only one operand.
+;    vOperand2 - Stores the second operand.
+; 
+; Registers Destroyed:
+;    A, AF
+; *****************************************************************************
+
 instruction:
-    ld a,l
-    ld (vOpcode),a
-    call nextToken
-    call isEndOfLine
-    ret z
+    ld a, l                      ; Load the current token (opcode) into A
+    ld (vOpcode), a              ; Store the opcode in vOpcode
+    call nextToken               ; Get the next token
+    call isEndOfLine             ; Check if the end of the line is reached
+    ret z                        ; Return if it is the end of the line
 
-    call operand
-    ld (vOperand1),a
-    call nextToken
-    cp COMMA_
-    jr nz,instruction1
+    call operand                 ; Parse the first operand
+    ld (vOperand1), a            ; Store the first operand in vOperand1
+    call nextToken               ; Get the next token
+    cp COMMA_                    ; Check if the token is a comma
+    jr nz, instruction1          ; If not, handle as a single operand instruction
 
-    call nextToken
-    call isEndOfLine
-    jr z,parseError
+    call nextToken               ; Get the next token
+    call isEndOfLine             ; Check if the end of the line is reached
+    jr z, parseError             ; Jump to parseError if it is the end of the line
 
-    call operand
-    ld (vOperand2),a
-    ret    
+    call operand                 ; Parse the second operand
+    ld (vOperand2), a            ; Store the second operand in vOperand2
+    ret                          ; Return from the subroutine
 
 instruction1:
-    ld a,(vOperand1)           ; one operand instruction 
-    ld (vOperand2),a           ; move operand to operand2
-    ld a,-1                    ; set operand1 to default -1
-    ld (vOperand1),a
-    ret
+    push af                      ; Save the token type (AF)
+    ld a, (vOperand1)            ; Load the first operand into A
+    ld (vOperand2), a            ; Move the first operand to vOperand2
+    ld a, -1                     ; Set vOperand1 to default value -1 (no operand)
+    ld (vOperand1), a            ; Store the default value in vOperand1
+    pop af                       ; Restore the token type (AF)
+    ret                          ; Return from the subroutine
 
 directive:    
     ret
@@ -223,49 +244,49 @@ directive:
 ; *****************************************************************************
 
 operand:
-    cp OPELEM_              ; Check if the token is an op element i.e. reg,rp or flag
-    ret z                   ; Return if it is
+    cp OPELEM_                  ; Check if the token is an op element i.e. reg,rp or flag
+    ret z                       ; Return if it is
 
-    cp LPAREN_              ; Check if the token is a left parenthesis
-    jr z,operand1          ; If so,handle as a memory reference
+    cp LPAREN_                  ; Check if the token is a left parenthesis
+    jr z,operand1               ; If so,handle as a memory reference
 
-    call expression         ; Otherwise,treat as an expression
-    ld (vOpExpr),hl        ; Store the result of the operand expression
-    ld a,immed_            ; Set A to indicate an immediate value
+    call expression             ; Otherwise,treat as an expression
+    ld (vOpExpr),hl             ; Store the result of the operand expression
+    ld a,immed_                 ; Set A to indicate an immediate value
 
-    scf                     ; CF = true
+    scf                         ; CF = true
     ret
 
 operand1:
-    call nextToken          ; Memory reference. Get the next token
-    cp OPELEM_              ; Check if the next token is an op element
-    jr nz,operand2         ; If not,handle as an expression inside parentheses
+    call nextToken              ; Memory reference. Get the next token
+    cp OPELEM_                  ; Check if the next token is an op element
+    jr nz,operand2              ; If not,handle as an expression inside parentheses
 
-    ld a,l                 ; Otherwise,Load A with the lower byte of HL (operand)
+    ld a,l                      ; Otherwise,Load A with the lower byte of HL (operand)
     call isIndexReg
     jr nz,operand4
 
-    push af                 ; Save HL on the stack
-    call expression         ; Treat as an expression
-    ld (vOpDisp),hl        ; Store the result of the expression
-    pop af                  ; Restore HL from the stack
-    set 7,a                ; Set A to indicate an indexed memory reference
+    push af                     ; Save HL on the stack
+    call expression             ; Treat as an expression
+    ld (vOpDisp),hl             ; Store the result of the expression
+    pop af                      ; Restore HL from the stack
+    set 7,a                     ; Set A to indicate an indexed memory reference
 
 operand3:
-    set 6,a                ; Otherwise,set A to indicate a memory reference
+    set 6,a                     ; Otherwise,set A to indicate a memory reference
     jr operand4
 
 operand2:
-    call expression         ; Treat as a new expression
-    ld (vOpExpr),hl        ; Store the result of the expression
-    ld a,immed_ | mem_     ; Set A to indicate an immediate memory reference
+    call expression             ; Treat as a new expression
+    ld (vOpExpr),hl             ; Store the result of the expression
+    ld a,immed_ | mem_          ; Set A to indicate an immediate memory reference
     jr operand4
 
 operand4:
-    call nextToken          ; Get the next token
-    cp RPAREN_              ; Check if the next token is a right parenthesis
-    jp nz,parseError       ; If not,handle as a parse error
-    scf                     ; CF = true
+    call nextToken              ; Get the next token
+    cp RPAREN_                  ; Check if the next token is a right parenthesis
+    jp nz,parseError            ; If not,handle as a parse error
+    scf                         ; CF = true
     ret
 
 ; *****************************************************************************
@@ -289,45 +310,45 @@ operand4:
 ; *****************************************************************************
 
 expression:
-    ld b,0                 ; Initialize nesting level
-    push hl                 ; Save token value
-    ld de,(vHeapPtr)       ; Load the current heap pointer into DE
-    ld hl,(vExprPtr)       ; Load the current expression list pointer into HL
-    call hpush              ; Push the pointer to the last symbol onto the heap
-    ld hl,0                ; Append two words in header (for future use)
+    ld b,0                      ; Initialize nesting level
+    push hl                     ; Save token value
+    ld de,(vHeapPtr)            ; Load the current heap pointer into DE
+    ld hl,(vExprPtr)            ; Load the current expression list pointer into HL
+    call hpush                  ; Push the pointer to the last symbol onto the heap
+    ld hl,0                     ; Append two words in header (for future use)
     call hpush
     call hpush
-    ld (vExprPtr),de       ; Update the expression list pointer with the new address
-    pop hl                  ; HL = token value
+    ld (vExprPtr),de            ; Update the expression list pointer with the new address
+    pop hl                      ; HL = token value
 
 expression1:
-    ex de,hl               ; DE = token value
-    ld l,a                 ; HL = token type
+    ex de,hl                    ; DE = token value
+    ld l,a                      ; HL = token type
     ld h,0                 
-    call hpush              ; Push the token type
-    ex de,hl               ; HL = token value
-    call hpush              ; Push the token value
-    call nextToken          ; Get the next token
-    cp "("                  ; increase nesting?
+    call hpush                  ; Push the token type
+    ex de,hl                    ; HL = token value
+    call hpush                  ; Push the token value
+    call nextToken              ; Get the next token
+    cp "("                      ; increase nesting?
     jr nz,expression2
     inc b                   
-    call nextToken          ; Get the next token
-    jr expression1          ; Repeat the main loop
+    call nextToken              ; Get the next token
+    jr expression1              ; Repeat the main loop
 
 expression2:
-    inc b                   ; Check if nesting level is zero
+    inc b                       ; Check if nesting level is zero
     dec b
-    jr z,expression3       ; If yes,skip to expression3
+    jr z,expression3            ; If yes,skip to expression3
 
-    cp ")"                  ; if nesting > 0,decrease nesting?
+    cp ")"                      ; if nesting > 0,decrease nesting?
     jr nz,expression3
 
-    dec b                   ; Decrease nesting level
-    call nextToken          ; Get the next token
-    jr expression1          ; Repeat the main loop
+    dec b                       ; Decrease nesting level
+    call nextToken              ; Get the next token
+    jr expression1              ; Repeat the main loop
 
 expression3:
-    cp RPAREN_              ; Check if the end of the expression
+    cp RPAREN_                  ; Check if the end of the expression
     jr z,expression4
 
     cp COMMA_                  
@@ -339,9 +360,13 @@ expression3:
     jr expression1
 
 expression4:
-    ld hl,NULL             ; Mark the end of the expression with NULL
-    call hpush              ; Push NULL onto the heap
-    jp pushBackToken        ; Rewind the token to the last valid one
+    ex de,hl
+    ld hl,NULL                  ; Mark the end of the expression with NULL
+    call hpush                  ; Push NULL onto the heap
+    ex de,hl
+    call pushBackToken          ; Rewind the token to the last valid one
+    ld hl,(vExprPtr)
+    ret
 
 ; *****************************************************************************
 ; Routine: addSymbol
@@ -363,28 +388,16 @@ expression4:
 ; *****************************************************************************
 addSymbol:
     push de
-    push hl                 ; Push symbol name onto the stack
-    ld de,(vHeapPtr)       ; BC = symbol address from the heap pointer
-    ld hl,(vSymPtr)        ; Load the current symbol list pointer into HL
-    call hpush              ; Push pointer to the last symbol onto the heap
-    ld (vSymPtr),de        ; Update the symbol list pointer with the new symbol address
-    pop hl                  ; HL = symbol name
-    call hpush              ; Push symbol name onto the heap
-    pop hl                  ; HL = symbol value
-    call hpush              ; Push symbol value onto the heap
-    ret                     ; Return from subroutine
-
-; nextToken is a lexer function that reads characters from the input and classifies 
-; them into different token types. It handles whitespace,end of input,newlines,
-; comments,identifiers,labels,directives,hexadecimal numbers,and other SYMBOLS.
-
-; Input: None
-
-; Output:
-; a: contains the type of the next token.
-; hl: contains the value associated with the next token.
-
-; Destroyed: None
+    push hl                     ; Push symbol name onto the stack
+    ld de,(vHeapPtr)            ; BC = symbol address from the heap pointer
+    ld hl,(vSymPtr)             ; Load the current symbol list pointer into HL
+    call hpush                  ; Push pointer to the last symbol onto the heap
+    ld (vSymPtr),de             ; Update the symbol list pointer with the new symbol address
+    pop hl                      ; HL = symbol name
+    call hpush                  ; Push symbol name onto the heap
+    pop hl                      ; HL = symbol value
+    call hpush                  ; Push symbol value onto the heap
+    ret                         ; Return from subroutine
 
 ; *****************************************************************************
 ; Routine: nextToken
@@ -530,7 +543,7 @@ nextToken14:
     ret z                       
     cp ","                      ; If "," then return COMMA token
     ret z                       
-    ld a,UNKNOWN_              ; Return with UNKNOWN token
+    ld a,UNKNOWN_               ; Return with UNKNOWN token
     ret
 
 ; *****************************************************************************
@@ -552,9 +565,9 @@ nextToken14:
 ; *****************************************************************************
 
 pushBackToken:
-    set 7,a                    ; Set the high bit of the token type (without affecting flags)
-    ld (vToken),a              ; push back the token
-    ld (vTokenVal),hl          ; push back the token value
+    set 7,a                     ; Set the high bit of the token type (without affecting flags)
+    ld (vToken),a               ; push back the token
+    ld (vTokenVal),hl           ; push back the token value
     ret                         
   
 ; *****************************************************************************
@@ -580,27 +593,27 @@ pushBackToken:
 ; *****************************************************************************
 
 ident:
-    ld hl,(vHeapPtr)       ; Load the address of the top of STRINGS heap
-    push hl                 ; save start of string
-    inc hl                  ; Move to the next byte to skip the length byte
+    ld hl,(vHeapPtr)            ; Load the address of the top of STRINGS heap
+    push hl                     ; save start of string
+    inc hl                      ; Move to the next byte to skip the length byte
 ident1:
-    ld (hl),a              ; Write the current character to the string BUFFER
-    inc hl                  ; Move to the next position in the BUFFER
+    ld (hl),a                   ; Write the current character to the string BUFFER
+    inc hl                      ; Move to the next position in the BUFFER
     push hl
-    call nextChar           ; Get the next character from the input stream
+    call nextChar               ; Get the next character from the input stream
     pop hl
-    cp "_"                  ; Compare with underscore character
-    jr z,ident1            ; If underscore,jump to ident2
-    call isAlphanum         ; Check if the character is alphanumeric
-    jr c,ident1            ; If not alphanumeric,jump to ident3
+    cp "_"                      ; Compare with underscore character
+    jr z,ident1                 ; If underscore,jump to ident2
+    call isAlphanum             ; Check if the character is alphanumeric
+    jr c,ident1                 ; If not alphanumeric,jump to ident3
 ident3:
-    ld (vHeapPtr),hl       ; Update the top of STRINGS heap pointer
-    pop de                  ; restore start of string into de 
-    or a                    ; Clear carry
-    sbc hl,de              ; Calculate the length of the string (HL = length,DE = string)
-    dec l                   ; reduce by one (length byte)
-    ex de,hl               ; Swap DE and HL (E = length,HL = string)
-    ld (hl),e              ; Store the length at the beginning of the string BUFFER
+    ld (vHeapPtr),hl            ; Update the top of STRINGS heap pointer
+    pop de                      ; restore start of string into de 
+    or a                        ; Clear carry
+    sbc hl,de                   ; Calculate the length of the string (HL = length,DE = string)
+    dec l                       ; reduce by one (length byte)
+    ex de,hl                    ; Swap DE and HL (E = length,HL = string)
+    ld (hl),e                   ; Store the length at the beginning of the string BUFFER
     ret                     
 
 ; *****************************************************************************
@@ -624,29 +637,29 @@ ident3:
 ; *****************************************************************************
 
 searchStr:
-    ld b,0               ; init b with index 0 
+    ld b,0                      ; init b with index 0 
 
 searchStr1:
-    call compareStr       ; compare strings    
+    call compareStr             ; compare strings    
     jr nz,searchStr3
-    ld a,b               ; Load index of match
-    ret                   ; ZF = true
+    ld a,b                      ; Load index of match
+    ret                         ; ZF = true
 
 searchStr3:
-    ld a,(de)            ; Load length of current string
-    inc a                 ; A = length byte plus length of string
+    ld a,(de)                   ; Load length of current string
+    inc a                       ; A = length byte plus length of string
     
-    add a,e              ; HL += A,move HL to point to next string     
+    add a,e                     ; HL += A,move HL to point to next string     
     ld e,a
     ld a,0
     adc a,d
     ld d,a
     
-    inc b                 ; increase index
-    ld a,(de)            ; A = length of next string
-    or a                  ; If A != 0,continue searching
+    inc b                       ; increase index
+    ld a,(de)                   ; A = length of next string
+    or a                        ; If A != 0,continue searching
     jr nz,searchStr1
-    dec a                 ; A = NO_MATCH (i.e.,-1),ZF = false
+    dec a                       ; A = NO_MATCH (i.e.,-1),ZF = false
     ret
    
 ; *****************************************************************************
@@ -668,29 +681,29 @@ searchStr3:
 ; *****************************************************************************
 
 searchOpcode:
-    ld de,alu_opcodes          ; Point DE to the list of ALU opcodes
+    ld de,alu_opcodes           ; Point DE to the list of ALU opcodes
     call searchStr              ; Search for the string in ALU opcodes
     ret z                       ; If match found (ZF set),return
 
-    ld de,rot_opcodes          ; Point DE to the list of ROT opcodes
+    ld de,rot_opcodes           ; Point DE to the list of ROT opcodes
     call searchStr              ; Search for the string in ROT opcodes
-    set 5,a                    ; Set bit 5 in A to indicate ROT opcodes
+    set 5,a                     ; Set bit 5 in A to indicate ROT opcodes
     ret z                       ; If match found (ZF set),return
 
-    ld de,bli_opcodes          ; Point DE to the list of BLI opcodes
+    ld de,bli_opcodes           ; Point DE to the list of BLI opcodes
     call searchStr              ; Search for the string in BLI opcodes
-    set 6,a                    ; Set bit 6 in A to indicate BLI opcodes
+    set 6,a                     ; Set bit 6 in A to indicate BLI opcodes
     ret z                       ; If match found (ZF set),return
 
-    ld de,gen1_opcodes         ; Point DE to the list of general opcodes (set 1)
+    ld de,gen1_opcodes          ; Point DE to the list of general opcodes (set 1)
     call searchStr              ; Search for the string in general opcodes
-    set 5,a                    ; Set bits 5 & 6 in A to indicate general opcodes (set 1)
+    set 5,a                     ; Set bits 5 & 6 in A to indicate general opcodes (set 1)
     set 6,a                    
     ret z                       ; If match found (ZF set),return
 
-    ld de,gen2_opcodes         ; Point DE to the list of general opcodes (set 2)
+    ld de,gen2_opcodes          ; Point DE to the list of general opcodes (set 2)
     call searchStr              ; Search for the string in general opcodes
-    set 7,a                    ; Set bit 7 in A to indicate general opcodes (set 2)
+    set 7,a                     ; Set bit 7 in A to indicate general opcodes (set 2)
 
     ret                         ; Return ZF = match
 
@@ -713,23 +726,19 @@ searchOpcode:
 ;    A,DE,HL
 ; *****************************************************************************
 
-; reg_    .equ    0x00    ; A,B etc
-; rp_     .equ    0x08    ; bit 3: 8-bit or 16-bit e.g. A or HL,0xff or 0xffff
-; flag_   .equ    0x10    ; bit 4: NZ etc
-
 searchOpElem:
-    ld de,reg8                 ; Point DE to the list of 8-bit register operands
+    ld de,reg8                  ; Point DE to the list of 8-bit register operands
     call searchStr              ; Search for the string in reg8 operands
     ret z                       ; If match found (ZF set),return
 
-    ld de,reg16                ; Point DE to the list of 16-bit register operands
+    ld de,reg16                 ; Point DE to the list of 16-bit register operands
     call searchStr              ; Search for the string in reg16 operands
-    set 3,a                    ; Set bit 4 in A to indicate a register operand
+    set 3,a                     ; Set bit 4 in A to indicate a register operand
     ret z                       ; If match found (ZF set),return
 
-    ld de,flags                ; Point DE to the list of flag operands
+    ld de,flags                 ; Point DE to the list of flag operands
     call searchStr              ; Search for the string in flag operands
-    set 4,a                    ; Set bit 3 in A to indicate flag operand
+    set 4,a                     ; Set bit 3 in A to indicate flag operand
 
     ret                         ; Return ZF = match
 
@@ -756,14 +765,14 @@ compareStr:
     push bc                     ; save BC,DE,HL    
     push de
     push hl
-    ld a,(de)                  ; Load length of search string
-    ld b,a                     ; Copy length to B for looping
+    ld a,(de)                   ; Load length of search string
+    ld b,a                      ; Copy length to B for looping
     inc b                       ; Increase to include length byte     
 
 compareStr2:
-    ld a,(de)                  ; Load next character from search string
+    ld a,(de)                   ; Load next character from search string
     cp (hl)                     ; Compare with next character in current string
-    jr nz,compareStr3          ; break if characters are not equal
+    jr nz,compareStr3           ; break if characters are not equal
     inc de                      ; Move to next character in search string
     inc hl                      ; Move to next character in current string
     djnz compareStr2            ; Loop until all characters compared or mismatch
@@ -791,10 +800,10 @@ compareStr3:
 ; *****************************************************************************
 
 isEndOfLine:
-    cp EOF_          ; Compare the current character with EOF_
-    ret z            ; Return if the current character is EOF (Z flag set)
-    cp NEWLN_        ; Compare the current character with NEWLN_
-    ret              ; Return (Z flag set if NEWLN_, cleared otherwise)
+    cp EOF_                     ; Compare the current character with EOF_
+    ret z                       ; Return if the current character is EOF (Z flag set)
+    cp NEWLN_                   ; Compare the current character with NEWLN_
+    ret                         ; Return (Z flag set if NEWLN_, cleared otherwise)
 
 ; *****************************************************************************
 ; Routine: isIndexReg
@@ -813,10 +822,10 @@ isEndOfLine:
 ; *****************************************************************************
 
 isIndexReg:
-    cp IX_                       ; Compare operand with IX
-    ret z                        ; Return if equal (ZF is set)
-    cp IY_                       ; Compare operand with IY
-    ret                          ; Return (ZF is set if equal,cleared otherwise)
+    cp IX_                      ; Compare operand with IX
+    ret z                       ; Return if equal (ZF is set)
+    cp IY_                      ; Compare operand with IY
+    ret                         ; Return (ZF is set if equal,cleared otherwise)
 
 ; *****************************************************************************
 ; Routine: isAlphaNum
@@ -839,9 +848,9 @@ isIndexReg:
 ; *****************************************************************************
 
 isAlphaNum:
-    call isDigit        ; Check if it's a digit
-    ret z               ; If it's not a digit,continue to isAlpha
-                        ; Falls through to isAlpha
+    call isDigit                ; Check if it's a digit
+    ret z                       ; If it's not a digit,continue to isAlpha
+                                ; Falls through to isAlpha
 
 ; *****************************************************************************
 ; Routine: isAlpha
@@ -863,19 +872,19 @@ isAlphaNum:
 ; *****************************************************************************
 
 isAlpha:
-    cp "z"+1          ; Compare with 'Z' + 1
-    ret nc            ; Return if it's not alphabetic,no carry 
-    cp "a"            ; Compare with lowercase 'a'
-    jr c,isAlpha1    ; Jump if it's lower than 'a'
-    sub $20           ; It's lowercase alpha so convert lowercase to uppercase
-    scf               ; no carry so set carry flag    
+    cp "z"+1                    ; Compare with 'Z' + 1
+    ret nc                      ; Return if it's not alphabetic,no carry 
+    cp "a"                      ; Compare with lowercase 'a'
+    jr c,isAlpha1               ; Jump if it's lower than 'a'
+    sub $20                     ; It's lowercase alpha so convert lowercase to uppercase
+    scf                         ; no carry so set carry flag    
     ret
 isAlpha1:
-    cp "Z"+1          ; Compare with 'Z' + 1
-    ret nc            ; Return if it's not alphabetic,no carry
-    cp "A"            ; Compare with 'A'
-    ccf               ; Invert CF to set it if it's alphabetic
-    ret               ; Return
+    cp "Z"+1                    ; Compare with 'Z' + 1
+    ret nc                      ; Return if it's not alphabetic,no carry
+    cp "A"                      ; Compare with 'A'
+    ccf                         ; Invert CF to set it if it's alphabetic
+    ret               
 
 ; *****************************************************************************
 ; Routine: isDigit
@@ -895,100 +904,11 @@ isAlpha1:
 ; *****************************************************************************
 
 isDigit:
-    cp "9"+1          ; Compare with '9' + 1
-    ret nc            ; Return if it's not a digit
-    cp "0"            ; Compare with '0'
-    ccf               ; Invert CF to set it if it's a digit
-    ret               ; Return
-
-; ; *****************************************************************************
-; ; Routine: number
-; ; 
-; ; Purpose:
-; ;    Parse a number from the input. Handles both decimal and hexadecimal 
-; ;    numbers,and supports negative numbers.
-; ; 
-; ; Input:
-; ;    A - first char of number
-; ; 
-; ; Output:
-; ;    HL - Contains the parsed number.
-; ; 
-; ; Destroyed:
-; ;    None
-; ; *****************************************************************************
-
-; number:
-;     cp "-"
-;     jr nz,number1
-;     ld a,-1
-;     jr number2
-
-; number1:
-;     call rewindChar
-;     ld a,0
-
-; number2:
-;     ld (vTemp1),a
-;     cp "$"
-;     jr nz,number3
-;     call hexadecimal
-;     jr number4
-
-; number3:
-;     call isDigit
-;     jp nz, parseError
-    
-;     call rewindChar
-;     call decimal
-
-; number4:
-;     ld a,(vTemp1)       ; Load the sign from vTemp1
-;     inc a               ; Increment to negate if necessary
-;     ret nz              ; Return if sign is not zero
-;     ex de,hl            ; Negate the value of HL
-;     ld hl,0             ; Load zero to clear carry
-;     or a                ; Clear carry flag
-;     sbc hl,de           ; Subtract DE from HL
-;     jp rewindChar       ; Push back the character
-
-
-; number:
-;     cp "-"              ; Check if it's a negative number
-;     ld a,-1             ; Set sign flag
-;     jr z,number1      
-;     inc a               ; Set sign flag to positive
-; number1:
-;     ld (vTemp1),a       ; Store the sign flag in vTemp1
-;     call nextChar       ; Get the next character
-;     cp "$"              ; Check if it's a hexadecimal number
-;     jr nz,number2     
-;     call hexadecimal            ; If yes,parse hexadecimal number
-;     jr number3         
-; number2:
-;     call rewindChar     ; Push back the character
-;     call decimal        ; Parse decimal number
-; number3:
-;     ld a,(vTemp1)       ; Load the sign from vTemp1
-;     inc a               ; Increment to negate if necessary
-;     ret nz              ; Return if sign is not zero
-;     ex de,hl            ; Negate the value of HL
-;     ld hl,0             ; Load zero to clear carry
-;     or a                ; Clear carry flag
-;     sbc hl,de           ; Subtract DE from HL
-;     jp rewindChar       ; Push back the character
-
-; number_dec:
-;     xor a
-;     ld (vTemp1),a       ; Store the sign flag in vTemp1
-;     call decimal        ; Parse hexadecimal number
-;     jr number3         
-
-; number_hex:
-;     xor a
-;     ld (vTemp1),a       ; Store the sign flag in vTemp1
-;     call hexadecimal            ; Parse hexadecimal number
-;     jr number3         
+    cp "9"+1                    ; Compare with '9' + 1
+    ret nc                      ; Return if it's not a digit
+    cp "0"                      ; Compare with '0'
+    ccf                         ; Invert CF to set it if it's a digit
+    ret               
 
 ; *****************************************************************************
 ; Routine: decimal
@@ -1007,29 +927,29 @@ isDigit:
 ; *****************************************************************************
 
 decimal:
-    ld hl,0           ; Initialize HL to 0
+    ld hl,0                     ; Initialize HL to 0
 decimal1:
     push de
     push hl
-    call nextChar      ; Get the next character
+    call nextChar               ; Get the next character
     pop hl
     pop de
-    sub "0"            ; Convert ASCII to binary
-    ret c              ; Return if less than '0'
-    cp 10              ; Compare with 10
-    ret nc             ; Return if greater than 10
-    inc bc             ; Increment BC to point to next digit
-    ld de,hl          ; Copy HL to DE
-    add hl,hl         ; Multiply HL by 2
-    add hl,hl         ; Multiply HL by 4
-    add hl,de         ; Add DE to HL to multiply by 5
-    add hl,hl         ; Multiply HL by 10
-    add a,l           ; Add A to HL
-    ld l,a            ; Store result back in L
-    ld a,0            ; Clear A
-    adc a,h           ; Add carry to H
-    ld h,a            ; Store result back in H
-    jr decimal1        ; Jump back to start of loop
+    sub "0"                     ; Convert ASCII to binary
+    ret c                       ; Return if less than '0'
+    cp 10                       ; Compare with 10
+    ret nc                      ; Return if greater than 10
+    inc bc                      ; Increment BC to point to next digit
+    ld de,hl                    ; Copy HL to DE
+    add hl,hl                   ; Multiply HL by 2
+    add hl,hl                   ; Multiply HL by 4
+    add hl,de                   ; Add DE to HL to multiply by 5
+    add hl,hl                   ; Multiply HL by 10
+    add a,l                     ; Add A to HL
+    ld l,a                      ; Store result back in L
+    ld a,0                      ; Clear A
+    adc a,h                     ; Add carry to H
+    ld h,a                      ; Store result back in H
+    jr decimal1                 ; Jump back to start of loop
 
 ; *****************************************************************************
 ; Routine: hexadecimal
@@ -1048,37 +968,37 @@ decimal1:
 ; *****************************************************************************
 
 hexadecimal:
-    ld hl,0             ; Initialize HL to 0
+    ld hl,0                     ; Initialize HL to 0
 hexadecimal1:
     push hl
-    call nextChar       ; Get the next character
+    call nextChar               ; Get the next character
     pop hl
-    cp "0"              ; Compare with ASCII '0'
-    ret c               ; Return if less than '0'
-    cp "9"+1            ; Compare with ASCII '9' + 1
-    jr c,hexadecimal4   ; If less or equal,jump to valid
-    cp "a"              ; Compare with ASCII 'a'
-    jr c,hexadecimal2   ; If less,jump to hexadecimal2
-    sub $20             ; Convert lowercase to uppercase
+    cp "0"                      ; Compare with ASCII '0'
+    ret c                       ; Return if less than '0'
+    cp "9"+1                    ; Compare with ASCII '9' + 1
+    jr c,hexadecimal4           ; If less or equal,jump to valid
+    cp "a"                      ; Compare with ASCII 'a'
+    jr c,hexadecimal2           ; If less,jump to hexadecimal2
+    sub $20                     ; Convert lowercase to uppercase
 hexadecimal2:
-    cp "A"              ; Compare with ASCII 'A'
-    ret c               ; Return if less than 'A'
-    cp "F"+1            ; Compare with ASCII 'F' + 1
-    jr c,hexadecimal3   ; If less or equal,jump to hexadecimal3
+    cp "A"                      ; Compare with ASCII 'A'
+    ret c                       ; Return if less than 'A'
+    cp "F"+1                    ; Compare with ASCII 'F' + 1
+    jr c,hexadecimal3           ; If less or equal,jump to hexadecimal3
 hexadecimal3:
-    sub $37             ; Convert ASCII to hexadecimal
+    sub $37                     ; Convert ASCII to hexadecimal
 hexadecimal4:
-    sub "0"             ; Convert ASCII to numeric value
-    ret c               ; Return if less than 0 (not a valid digit)
-    cp $10              ; Compare with 16
-    ret nc              ; Return if greater than 16 (not a valid digit)
-    add hl,hl           ; Multiply by 16
-    add hl,hl           ; Multiply by 16
-    add hl,hl           ; Multiply by 16
-    add hl,hl           ; Multiply by 16
-    add a,l             ; Add new digit to HL
-    ld  l,a             ; Store result back in L
-    jp  hexadecimal1    ; Jump back to hexadecimal1 to process next character
+    sub "0"                     ; Convert ASCII to numeric value
+    ret c                       ; Return if less than 0 (not a valid digit)
+    cp $10                      ; Compare with 16
+    ret nc                      ; Return if greater than 16 (not a valid digit)
+    add hl,hl                   ; Multiply by 16
+    add hl,hl                   ; Multiply by 16
+    add hl,hl                   ; Multiply by 16
+    add hl,hl                   ; Multiply by 16
+    add a,l                     ; Add new digit to HL
+    ld  l,a                     ; Store result back in L
+    jp  hexadecimal1            ; Jump back to hexadecimal1 to process next character
 
 ; *****************************************************************************
 ; Routine: nextChar
@@ -1098,24 +1018,24 @@ hexadecimal4:
 ; *****************************************************************************
 
 nextChar:
-    ld hl,vBufferPos           ; Load the offset of BUFFER position variable
-    ld a,(hl)                  ; Load the current position offset in the BUFFER into A
+    ld hl,vBufferPos            ; Load the offset of BUFFER position variable
+    ld a,(hl)                   ; Load the current position offset in the BUFFER into A
     cp BUFFER_SIZE              ; Compare with BUFFER size
-    jp z,nextLine              ; Jump to nextLine if end of BUFFER
-    ld de,BUFFER               ; Load the MSB of the BUFFER's address into D
+    jp z,nextLine               ; Jump to nextLine if end of BUFFER
+    ld de,BUFFER                ; Load the MSB of the BUFFER's address into D
     add a,e                     ; de += a
     ld e,a
     ld a,0
     adc a,d
     ld d,a
-    ld a,(de)                  ; Load the character at the current BUFFER position into A
+    ld a,(de)                   ; Load the character at the current BUFFER position into A
     inc (hl)                    ; Increment the BUFFER position offset
     cp "\n"                     ; if a != null return else load a new line into buffer 
     ret nz                      
 
 nextLine:
-    ld hl,BUFFER               ; Start of the BUFFER
-    ld b,BUFFER_SIZE           ; Number of bytes to fill
+    ld hl,BUFFER                ; Start of the BUFFER
+    ld b,BUFFER_SIZE            ; Number of bytes to fill
 
 nextLine1:
     call getchar                ; Get a character from getchar
@@ -1132,14 +1052,14 @@ nextLine2:
 
 nextLine3:
     cp "\b"                     ; Check if character is backspace
-    jr nz,nextLine4            ; If not,proceed to store the character
+    jr nz,nextLine4             ; If not,proceed to store the character
     ld a,BUFFER_SIZE
     sub b                       ; Check if at the start of the buffer
-    jr z,nextLine1             ; If at the start,ignore backspace
+    jr z,nextLine1              ; If at the start,ignore backspace
     dec hl                      ; Move back in the buffer
     inc b                       ; Adjust buffer size counter
 
-    call print                 ; Erase the character at the current cursor position
+    call print                  ; Erase the character at the current cursor position
     .cstr ESC,"[P"              ; Escape sequence for erasing character
     jr nextLine1
 
@@ -1158,7 +1078,7 @@ nextLine5:
     jr nextLine6
 
 nextLine6:
-    ld (hl),a                  ; Store the character in the BUFFER
+    ld (hl),a                   ; Store the character in the BUFFER
     inc hl                      ; Move to the next position in the BUFFER
     cp EOF                      ; Break loop if character is end of line
     jr z,nextLine7             
@@ -1189,7 +1109,7 @@ nextLine7:
 ; *****************************************************************************
 
 rewindChar:
-    ld a,(vBufferPos)          ; Load the current position in the BUFFER into A
+    ld a,(vBufferPos)           ; Load the current position in the BUFFER into A
     or a                        ; Check if the BUFFER position is zero
     ret z                       ; If zero,nothing to push back,return
     dec a                       ; Decrement the BUFFER position
@@ -1235,8 +1155,8 @@ prompt:
 
 crlf:                               
     call print                  ; Print the null-terminated string (carriage return and line feed)
-    .cstr "\r\n"                 ; Define the carriage return and line feed message
-    ret                          ; Return to the caller
+    .cstr "\r\n"                ; Define the carriage return and line feed message
+    ret                         ; Return to the caller
 
 ; *****************************************************************************
 ; Routine: error
@@ -1256,7 +1176,7 @@ crlf:
 
 error:
     pop hl                      ; Retrieve the "return" address which is the address of the error message
-    call printStr              ; Call the routine to print the null-terminated string
+    call printStr               ; Call the routine to print the null-terminated string
     halt                        ; Halt the CPU
 
 ; *****************************************************************************
@@ -1276,11 +1196,11 @@ error:
 ; *****************************************************************************
 
 print:                           
-    ex (sp),hl                ; Swap HL with the value on the stack to preserve HL
-    call printZStr            ; Call the routine to print the null-terminated string
-    inc hl                    ; Increment HL to skip the null terminator
-    ex (sp),hl                ; Restore the original value of HL from the stack
-    ret                       ; Return to the caller
+    ex (sp),hl                  ; Swap HL with the value on the stack to preserve HL
+    call printZStr              ; Call the routine to print the null-terminated string
+    inc hl                      ; Increment HL to skip the null terminator
+    ex (sp),hl                  ; Restore the original value of HL from the stack
+    ret                         ; Return to the caller
 
 ; *****************************************************************************
 ; Routine: printStr
@@ -1299,17 +1219,17 @@ print:
 ; *****************************************************************************
 
 printStr:
-    ld a,(hl)                ; Load the length of the string
-    or a                      ; Check if the length is zero
-    ret z                     ; If zero,return immediately
-    inc hl                    ; Move HL to the start of the string data
-    ld b,a                   ; Copy the length to B for looping
+    ld a,(hl)                   ; Load the length of the string
+    or a                        ; Check if the length is zero
+    ret z                       ; If zero,return immediately
+    inc hl                      ; Move HL to the start of the string data
+    ld b,a                      ; Copy the length to B for looping
 printStr1:
-    ld a,(hl)                ; Load the next character
-    call putchar              ; Call a routine that prints a single character
-    inc hl                    ; Move to the next character
-    djnz printStr1            ; Decrement B and jump if not zero
-    ret                       ; Return from the routine
+    ld a,(hl)                   ; Load the next character
+    call putchar                ; Call a routine that prints a single character
+    inc hl                      ; Move to the next character
+    djnz printStr1              ; Decrement B and jump if not zero
+    ret                         ; Return from the routine
 
 ; *****************************************************************************
 ; Routine: printZStr
@@ -1328,17 +1248,17 @@ printStr1:
 ; *****************************************************************************
 
 printZStr:
-    jr printZStr2             ; Jump to the loop condition
+    jr printZStr2               ; Jump to the loop condition
 
 printZStr1:                            
-    call putchar              ; Print the current character
-    inc hl                    ; Move to the next character
+    call putchar                ; Print the current character
+    inc hl                      ; Move to the next character
 
 printZStr2:
-    ld a,(hl)                ; Load the current character
-    or a                      ; Check if the character is null
-    jr nz,printZStr1         ; If not null,continue printing
-    ret                       ; Return when null character is encountered
+    ld a,(hl)                   ; Load the current character
+    or a                        ; Check if the character is null
+    jr nz,printZStr1            ; If not null,continue printing
+    ret                         ; Return when null character is encountered
 
 ; *****************************************************************************
 ; Routine: hpush
@@ -1357,16 +1277,16 @@ printZStr2:
 ;    DE,HL
 ; *****************************************************************************
 hpush:
-    push de                 ; Save DE
-    ex de,hl               ; Exchange DE and HL to move value to DE
-    ld hl,(vHeapPtr)       ; Load the current top of the heap into HL
-    ld (hl),d              ; Store the high byte of DE (now in HL) on the heap
-    inc hl                  ; Increment HL to point to the next heap position
-    ld (hl),e              ; Store the low byte of DE (now in HL) on the heap
-    inc hl                  ; Increment HL to point to the new top of the heap
-    ld (vHeapPtr),hl       ; Update the heap pointer with the new top of the heap
-    pop de                  ; Restore DE
-    ret                     ; Return from the subroutine
+    push de                     ; Save DE
+    ex de,hl                    ; Exchange DE and HL to move value to DE
+    ld hl,(vHeapPtr)            ; Load the current top of the heap into HL
+    ld (hl),d                   ; Store the high byte of DE (now in HL) on the heap
+    inc hl                      ; Increment HL to point to the next heap position
+    ld (hl),e                   ; Store the low byte of DE (now in HL) on the heap
+    inc hl                      ; Increment HL to point to the new top of the heap
+    ld (vHeapPtr),hl            ; Update the heap pointer with the new top of the heap
+    pop de                      ; Restore DE
+    ret                         ; Return from the subroutine
 
 ; ; *****************************************************************************
 ; ; Routine: hpop
@@ -1386,16 +1306,16 @@ hpush:
 ; ;    DE,HL
 ; ; *****************************************************************************
 ; hpop:
-;     push de                 ; Save DE
-;     ld hl,(vHeapPtr)       ; Load the current top of the heap into HL
-;     dec hl                  ; Decrement HL to point to the high byte of the value
-;     ld l,(hl)              ; Load the low byte of the value into L
-;     dec hl                  ; Decrement HL to point to the low byte of the value
-;     ld h,(hl)              ; Load the high byte of the value into H
-;     ld (vHeapPtr),hl       ; Update the heap pointer with the new top of the heap
-;     ex de,hl               ; Exchange DE and HL to move the value to HL
-;     pop de                  ; Restore DE
-;     ret                     ; Return from the subroutine
+;     push de                   ; Save DE
+;     ld hl,(vHeapPtr)          ; Load the current top of the heap into HL
+;     dec hl                    ; Decrement HL to point to the high byte of the value
+;     ld l,(hl)                 ; Load the low byte of the value into L
+;     dec hl                    ; Decrement HL to point to the low byte of the value
+;     ld h,(hl)                 ; Load the high byte of the value into H
+;     ld (vHeapPtr),hl          ; Update the heap pointer with the new top of the heap
+;     ex de,hl                  ; Exchange DE and HL to move the value to HL
+;     pop de                    ; Restore DE
+;     ret                       ; Return from the subroutine
 
 ; *******************************************************************************
 ; *********  END OF MAIN   ******************************************************
