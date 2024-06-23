@@ -23,10 +23,12 @@ EOF_        .equ    "E"
 IDENT_      .equ    "I"
 LABEL_      .equ    "L"
 LPAREN_     .equ    "("
+MINUS_      .equ    "-"
 NEWLN_      .equ    "\n"
 NUM_        .equ    "9"
 OPCODE_     .equ    "C"
 OPELEM_     .equ    "M"                 ; op element: reg, rp, flag
+PLUS_       .equ    "+"
 RPAREN_     .equ    ")"
 UNKNOWN_    .equ    "U"
 

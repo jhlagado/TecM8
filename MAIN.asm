@@ -405,122 +405,125 @@ addSymbol:
 ; *****************************************************************************
 
 nextToken:
-    ld hl,vToken               ; hl points to vToken
-    ld a,(hl)                  ; load a with pushed back vToken 
+    ld hl,vToken                ; hl points to vToken
+    ld a,(hl)                   ; load a with pushed back vToken 
     bit 7,a                     ; Check the high bit of token
-    jp z,nextToken0            ; If high bit clear,nothing pushed back 
+    jp z,nextToken1             ; If high bit clear,nothing pushed back 
     res 7,a                     ; Clear high bit
-    ld (hl),a                  ; Store the character back in the BUFFER
-    ld hl,(vTokenVal)          ; put token value into HL
+    ld (hl),a                   ; Store the character back in the BUFFER
+    ld hl,(vTokenVal)           ; put token value into HL
     ret                         ; Return with the pushed back character in A
-
-nextToken0:
-    ld hl,0                    ; Initialize HL with 0
 
 nextToken1:
     call nextChar               ; Get the next character
+    ld hl,0                     ; Initialize HL with 0
     cp " "                      ; is it space? 
-    jr z,nextToken1            ; If yes,skip it and get the next character
+    jr z,nextToken1             ; If yes,skip it and get the next character
     cp EOF                      ; Is it null (end of input)?
-    jr nz,nextToken2           ; If not,continue to the next check
-    ld a,EOF_                  ; If yes,return with EOF token
+    jr nz,nextToken2            ; If not,continue to the next check
+    ld a,EOF_                   ; If yes,return with EOF token
     ret
 
 nextToken2:
     cp $5C                      ; Is it a statement separator? "\"
-    jr nz,nextToken3           ; If not,continue to the next check
+    jr z,nextToken2a            ; If not,continue to the next check
     cp ":"                      ; Is it a statement separator? ":"
-    jr nz,nextToken3           ; If not,continue to the next check
+    jr z,nextToken2a            ; If not,continue to the next check
     cp "\n"                     ; Is it a new line
-    jr nc,nextToken3           ; If not,continue to the next check
-    ld a,NEWLN_                ; If yes,return with NEWLIN token
+    jr nz,nextToken3            ; If not,continue to the next check
+nextToken2a:
+    ld a,NEWLN_                 ; If yes,return with NEWLIN token
     ret                         ; Return with newline token
 
 nextToken3:
     cp ";"                      ; Is it a comment?
-    jr nz,nextToken5           ; If not,continue to the next check
+    jr nz,nextToken5            ; If not,continue to the next check
 
 nextToken4:
     call nextChar               ; Get the next character in the comment
     cp " "+1                    ; Loop until the next control character
     jr nc,nextToken4
     call rewindChar             ; Push back the character
-    jr nextToken0               ; return with control char
+    jr nextToken1               ; return with control char
 
 nextToken5:
     cp "_"                      ; Is it an identifier?
-    jr z,nextToken6            ; If yes,continue to the next check
+    jr z,nextToken6             ; If yes,continue to the next check
     call isAlpha                ; If not,check if it's alphabetic
-    jr nc,nextToken11          ; If not,continue to the next check
+    jr nc,nextToken11           ; If not,continue to the next check
 
 nextToken6:
     call ident                  ; Parse the identifier
     cp ":"                      ; Is it a label?
-    jr nz,nextToken7           ; If not,continue to the next check
-    ld a,LABEL_                ; If yes,return A = LABEL HL = string
+    jr nz,nextToken7            ; If not,continue to the next check
+    ld a,LABEL_                 ; If yes,return A = LABEL HL = string
     ret
 
 nextToken7:    
     call rewindChar             ; Push back the character
-    ld (vHeapPtr),hl           ; Restore string heap pointer to previous location
+    ld (vHeapPtr),hl            ; Restore string heap pointer to previous location
     call searchOpcode
     jr nz,nextToken8
-    ld l,a                     ; hl = opcode value
+    ld l,a                      ; hl = opcode value
     ld h,0
-    ld a,OPCODE_               ; Return with OPCODE token
+    ld a,OPCODE_                ; Return with OPCODE token
     ret
 
 nextToken8:
     call searchOpElem
     jr nz,nextToken9
-    ld l,a                     ; hl = op element value
+    ld l,a                      ; hl = op element value
     ld h,0
-    ld a,OPELEM_              ; Return with OPELEM token
+    ld a,OPELEM_                ; Return with OPELEM token
     ret
 
 nextToken9:
-    ld de,directives           ; List of directives to search
+    ld de,directives            ; List of directives to search
     call searchStr
     jr nz,nextToken10
-    ld l,a                     ; hl = directive value
+    ld l,a                      ; hl = directive value
     ld h,0
-    ld a,DIRECT_               ; Return with DIRECT token
+    ld a,DIRECT_                ; Return with DIRECT token
     ret
 
 nextToken10:
-    ld a,IDENT_                ; Return with IDENT token
+    ld a,IDENT_                 ; Return with IDENT token
     ret
 
 nextToken11:
     ld hl,0
     cp "$"                      ; Is it a hexadecimal number?
-    jr nz,nextToken12          ; If not,continue to the next check
+    jr nz,nextToken13           ; If not,continue to the next check
     call nextChar               ; Get the next character
     call isAlphaNum             ; Check if it's the ASSEMBLY pointer
-    jr nz,nextToken11a         ; If not,continue to the next check
-    call number_hex             ; Process hexadecimal number
-    ld a,NUM_                  ; Return with NUM token
+    jr z,nextToken12            ; If not,continue to the next check
+
+    call rewindChar             ; Push back the character (flags unaffected)
+    ld a,DOLLAR_                ; Return with DOLLAR token
+    ret                         ; Return with the DOLLAR token
+    
+nextToken12:
+    call rewindChar             ; Push back the character (flags unaffected)
+    call hexadecimal            ; Process hexadecimal number
+    call rewindChar             ; Push back the character (flags unaffected)
+    ld a,NUM_                   ; Return with NUM token
     ret
 
-nextToken11a:
-    call rewindChar             ; Push back the character (flags unaffected)
-    ld a,DOLLAR_               ; Return with DOLLAR token
-    ret                         ; Return with the DOLLAR token
-
-nextToken12:    
-    cp "-"                      ; Is it a negative number?
-    jr z,nextToken13           ; If yes,continue to the next check
+nextToken13:    
     call isDigit                ; Check if it's a digit
-    jr nc,nextToken15          ; Jump to the next check
+    jr nc,nextToken14           ; Jump to the next check
 
-nextToken13:
-    call number                 ; Parse the number
+    call rewindChar             ; Push back the character (flags unaffected)
+    call decimal                ; parse decimal
+    call rewindChar             ; Push back the character (flags unaffected)
+    ld a,NUM_                   ; Return with NUM token
+    ret
 
 nextToken14:
-    ld a,NUM_                  ; Return with NUM token
-    ret
-
-nextToken15:
+    cp "+"                      ; If "+" then return PLUS token
+    ret z
+    cp "-"                      ; If "-" then return MINUS token
+    ret z
     cp "("                      ; If "(" then return LPAREN token
     ret z                       
     cp ")"                      ; If ")" then return LPAREN token
@@ -898,102 +901,94 @@ isDigit:
     ccf               ; Invert CF to set it if it's a digit
     ret               ; Return
 
-; *****************************************************************************
-; Routine: number
-; 
-; Purpose:
-;    Parse a number from the input. Handles both decimal and hexadecimal 
-;    numbers,and supports negative numbers.
-; 
-; Input:
-;    A - first char of number
-; 
-; Output:
-;    HL - Contains the parsed number.
-; 
-; Destroyed:
-;    None
-; *****************************************************************************
+; ; *****************************************************************************
+; ; Routine: number
+; ; 
+; ; Purpose:
+; ;    Parse a number from the input. Handles both decimal and hexadecimal 
+; ;    numbers,and supports negative numbers.
+; ; 
+; ; Input:
+; ;    A - first char of number
+; ; 
+; ; Output:
+; ;    HL - Contains the parsed number.
+; ; 
+; ; Destroyed:
+; ;    None
+; ; *****************************************************************************
 
-number:
-    cp "-"             ; Check if it's a negative number
-    ld a,-1           ; Set sign flag
-    jr z,number1      
-    inc a              ; Set sign flag to positive
-number1:
-    ld (vTemp1),a     ; Store the sign flag in vTemp1
-    call nextChar      ; Get the next character
-    cp "$"             ; Check if it's a hexadecimal number
-    jr nz,number2     
-    call hex           ; If yes,parse hexadecimal number
-    jr number3         
-number2:
-    call rewindChar    ; Push back the character
-    call decimal       ; Parse decimal number
-number3:
-    ld a,(vTemp1)     ; Load the sign from vTemp1
-    inc a              ; Increment to negate if necessary
-    ret nz             ; Return if sign is not zero
-    ex de,hl          ; Negate the value of HL
-    ld hl,0           ; Load zero to clear carry
-    or a               ; Clear carry flag
-    sbc hl,de         ; Subtract DE from HL
-    call rewindChar    ; Push back the character
-    ret                ; Return
+; number:
+;     cp "-"
+;     jr nz,number1
+;     ld a,-1
+;     jr number2
 
-number_hex:
-    call rewindChar     
-    xor a
-    ld (vTemp1),a     ; Store the sign flag in vTemp1
-    call hex           ; Parse hexadecimal number
-    jr number3         
+; number1:
+;     call rewindChar
+;     ld a,0
 
-; *****************************************************************************
-; Routine: hex
-; 
-; Purpose:
-;    Parse a hexadecimal number.
-; 
-; Input:
-;    None
-; 
-; Output:
-;    HL - Parsed number.
-; 
-; Destroyed:
-;    A
-; *****************************************************************************
+; number2:
+;     ld (vTemp1),a
+;     cp "$"
+;     jr nz,number3
+;     call hexadecimal
+;     jr number4
 
-hex:
-    ld hl,0           ; Initialize HL to 0
-hex1:
-    call nextChar      ; Get the next character
-    cp "0"             ; Compare with ASCII '0'
-    ret c              ; Return if less than '0'
-    cp "9"+1           ; Compare with ASCII '9' + 1
-    jr c,valid        ; If less or equal,jump to valid
-    cp "a"             ; Compare with ASCII 'a'
-    jr c,hex2         ; If less,jump to hex2
-    sub $20            ; Convert lowercase to uppercase
-hex2:
-    cp "A"             ; Compare with ASCII 'A'
-    ret c              ; Return if less than 'A'
-    cp "F"+1           ; Compare with ASCII 'F' + 1
-    jr c,upper        ; If less or equal,jump to upper
-upper:
-    sub $37            ; Convert ASCII to hexadecimal
-valid:
-    sub "0"            ; Convert ASCII to numeric value
-    ret c              ; Return if less than 0 (not a valid digit)
-    cp $10             ; Compare with 16
-    ret nc             ; Return if greater than 16 (not a valid digit)
-    add hl,hl         ; Multiply by 16
-    add hl,hl         ; Multiply by 16
-    add hl,hl         ; Multiply by 16
-    add hl,hl         ; Multiply by 16
-    add a,l           ; Add new digit to HL
-    ld  l,a           ; Store result back in L
-    jp  hex1           ; Jump back to hex1 to process next character
+; number3:
+;     call isDigit
+;     jp nz, parseError
+    
+;     call rewindChar
+;     call decimal
+
+; number4:
+;     ld a,(vTemp1)       ; Load the sign from vTemp1
+;     inc a               ; Increment to negate if necessary
+;     ret nz              ; Return if sign is not zero
+;     ex de,hl            ; Negate the value of HL
+;     ld hl,0             ; Load zero to clear carry
+;     or a                ; Clear carry flag
+;     sbc hl,de           ; Subtract DE from HL
+;     jp rewindChar       ; Push back the character
+
+
+; number:
+;     cp "-"              ; Check if it's a negative number
+;     ld a,-1             ; Set sign flag
+;     jr z,number1      
+;     inc a               ; Set sign flag to positive
+; number1:
+;     ld (vTemp1),a       ; Store the sign flag in vTemp1
+;     call nextChar       ; Get the next character
+;     cp "$"              ; Check if it's a hexadecimal number
+;     jr nz,number2     
+;     call hexadecimal            ; If yes,parse hexadecimal number
+;     jr number3         
+; number2:
+;     call rewindChar     ; Push back the character
+;     call decimal        ; Parse decimal number
+; number3:
+;     ld a,(vTemp1)       ; Load the sign from vTemp1
+;     inc a               ; Increment to negate if necessary
+;     ret nz              ; Return if sign is not zero
+;     ex de,hl            ; Negate the value of HL
+;     ld hl,0             ; Load zero to clear carry
+;     or a                ; Clear carry flag
+;     sbc hl,de           ; Subtract DE from HL
+;     jp rewindChar       ; Push back the character
+
+; number_dec:
+;     xor a
+;     ld (vTemp1),a       ; Store the sign flag in vTemp1
+;     call decimal        ; Parse hexadecimal number
+;     jr number3         
+
+; number_hex:
+;     xor a
+;     ld (vTemp1),a       ; Store the sign flag in vTemp1
+;     call hexadecimal            ; Parse hexadecimal number
+;     jr number3         
 
 ; *****************************************************************************
 ; Routine: decimal
@@ -1014,7 +1009,11 @@ valid:
 decimal:
     ld hl,0           ; Initialize HL to 0
 decimal1:
+    push de
+    push hl
     call nextChar      ; Get the next character
+    pop hl
+    pop de
     sub "0"            ; Convert ASCII to binary
     ret c              ; Return if less than '0'
     cp 10              ; Compare with 10
@@ -1031,6 +1030,55 @@ decimal1:
     adc a,h           ; Add carry to H
     ld h,a            ; Store result back in H
     jr decimal1        ; Jump back to start of loop
+
+; *****************************************************************************
+; Routine: hexadecimal
+; 
+; Purpose:
+;    Parse a hexadecimal number.
+; 
+; Input:
+;    None
+; 
+; Output:
+;    HL - Parsed number.
+; 
+; Destroyed:
+;    A
+; *****************************************************************************
+
+hexadecimal:
+    ld hl,0             ; Initialize HL to 0
+hexadecimal1:
+    push hl
+    call nextChar       ; Get the next character
+    pop hl
+    cp "0"              ; Compare with ASCII '0'
+    ret c               ; Return if less than '0'
+    cp "9"+1            ; Compare with ASCII '9' + 1
+    jr c,hexadecimal4   ; If less or equal,jump to valid
+    cp "a"              ; Compare with ASCII 'a'
+    jr c,hexadecimal2   ; If less,jump to hexadecimal2
+    sub $20             ; Convert lowercase to uppercase
+hexadecimal2:
+    cp "A"              ; Compare with ASCII 'A'
+    ret c               ; Return if less than 'A'
+    cp "F"+1            ; Compare with ASCII 'F' + 1
+    jr c,hexadecimal3   ; If less or equal,jump to hexadecimal3
+hexadecimal3:
+    sub $37             ; Convert ASCII to hexadecimal
+hexadecimal4:
+    sub "0"             ; Convert ASCII to numeric value
+    ret c               ; Return if less than 0 (not a valid digit)
+    cp $10              ; Compare with 16
+    ret nc              ; Return if greater than 16 (not a valid digit)
+    add hl,hl           ; Multiply by 16
+    add hl,hl           ; Multiply by 16
+    add hl,hl           ; Multiply by 16
+    add hl,hl           ; Multiply by 16
+    add a,l             ; Add new digit to HL
+    ld  l,a             ; Store result back in L
+    jp  hexadecimal1    ; Jump back to hexadecimal1 to process next character
 
 ; *****************************************************************************
 ; Routine: nextChar

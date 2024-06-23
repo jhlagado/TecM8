@@ -1,4 +1,4 @@
-    .engine mycomputer
+    ; .engine mycomputer
 
     .include "constants.asm"
     .include "IOSerial.asm"
@@ -43,7 +43,7 @@ testsStart:
     .cstr "parse opcode with an immediate operand"
     
     call test
-    .db "halt"
+    .db "jp 0"
     .db 0
 
     call expectOpData
