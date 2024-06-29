@@ -17,20 +17,20 @@ tokens:
 
 COLON_      .equ    ":"
 COMMA_      .equ    ","
-DIRECT_     .equ    "D"
 DOLLAR_     .equ    "$"
-EOF_        .equ    "E"
-IDENT_      .equ    "I"
-LABEL_      .equ    "L"
 LPAREN_     .equ    "("
 MINUS_      .equ    "-"
 NEWLN_      .equ    "\n"
-NUM_        .equ    "9"
-OPCODE_     .equ    "C"
-OPELEM_     .equ    "M"                 ; op element: reg, rp, flag
 PLUS_       .equ    "+"
 RPAREN_     .equ    ")"
-UNKNOWN_    .equ    "U"
+EOF_        .equ    0
+DIRECT_     .equ    1
+IDENT_      .equ    2
+LABEL_      .equ    3
+NUM_        .equ    4
+OPCODE_     .equ    5
+OPELEM_     .equ    6                 ; op element: reg, rp, flag
+UNKNOWN_    .equ    100
 
 alu_        .equ    0x00
 rot_        .equ    0x20

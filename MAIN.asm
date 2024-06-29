@@ -210,6 +210,9 @@ instruction:
 
     call operand                 ; Parse the second operand
     ld (vOperand2), a            ; Store the second operand in vOperand2
+    call nextToken               ; Get the next token
+    call isEndOfLine             ; Check if the end of the line is reached
+    jr nz, parseError            ; Jump to parseError if it is the end of the line
     ret                          ; Return from the subroutine
 
 instruction1:
@@ -791,12 +794,12 @@ searchOpElem:
 
     ld de,reg16                 ; Point DE to the list of 16-bit register operands
     call searchStr              ; Search for the string in reg16 operands
-    or rp_                      ; Set bit 4 in A to indicate a register pair operand
+    set 3,a                     ; Set bit 3 in A to indicate a register pair operand
     ret z                       ; If match found (ZF set),return
 
     ld de,flags                 ; Point DE to the list of flag operands
     call searchStr              ; Search for the string in flag operands
-    or flag_                    ; Set bit 5 in A to indicate flag operand
+    set 4,a                     ; Set bit 4 in A to indicate flag operand
 
     ret                         ; Return ZF = match
 
