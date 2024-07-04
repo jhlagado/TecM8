@@ -110,6 +110,7 @@ expect1:
 ; *****************************************************************************
 
 expectOpData:
+    call crlf
     pop de                           ; Load DE with the return address pointing to the actual opcode/operand sequence
     ld hl,vOpcode                    ; Load HL with the address of the expected opcode/operand sequence
     
@@ -117,11 +118,17 @@ expectOpData:
     .cstr "Wrong opcode"             ; Error message if the opcode does not match
     
     call expectOpItem                ; Compare actual and expected first operand
-    .cstr "Wrong operand 1"          ; Error message if the first operand does not match
+    .cstr "Wrong operand type 1"          ; Error message if the first operand does not match
+    
+    call expectOpItem                ; Compare actual and expected first operand
+    .cstr "Wrong operand value 1"          ; Error message if the first operand does not match
     
     call expectOpItem                ; Compare actual and expected second operand
-    .cstr "Wrong operand 2"          ; Error message if the second operand does not match
+    .cstr "Wrong operand type 2"          ; Error message if the second operand does not match
     
+    call expectOpItem                ; Compare actual and expected first operand
+    .cstr "Wrong operand value 2"          ; Error message if the first operand does not match
+
     ex de,hl
     jp (hl)                          ; Jump to the address after expected op data
 
@@ -145,30 +152,41 @@ expectOpData:
 
 expectOpItem:
     ld a,(de)                       ; Load the expected byte into A from DE
+    cp -1                           ; skip?
+    jr z,expectOpItem1
     cp (hl)                         ; Compare expected with actual
+    jr nz,expectOpItem2             ; If bytes match Return if the bytes match
+
+expectOpItem1:
     inc de                          ; Move DE to point to next expected byte
     inc hl                          ; Move HL to point to next actual byte
-    jr nz,expectOpItem1             ; Return if the bytes match
     ex (sp),hl                      ; HL = expected string to skip (sp) = actual*
     call skipZStr                   ; Skip the message string
     inc hl                          ; Move to the next byte after the null terminator
     ex (sp),hl                      ; HL = actual* (SP) = expected string to skip 
     ret                             ; return after message string
 
-expectOpItem1:
-    call crlf
+expectOpItem2:
+    ex (sp),hl                      ; save hl, hl = expected message
+    push de                         ; save de
+    push hl                         ; save message
     call crlf
     ld hl,(tbDesc)                  ; Load the address of the test text
     call printZStr                  ; Print the test description
     call crlf
+    pop hl                          ; HL = expected message
+    call printZStr                  ; Print the test description
+    call crlf
     call crlf
     call print                      ; Print error messages if the bytes do not match
-    .cstr "Expected: "               ; Print "Expected"
-    ld a,(de)                       ; Load the expected byte into A for printing
+    .cstr "Expected: "              ; Print "Expected"
+    pop hl
+    ld a,(hl)                       ; Load the expected byte into A for printing
     call printHex2                  ; Print the expected byte in hexadecimal
     call crlf
     call print                      ; Print "Received"
     .cstr "Actual: "
+    pop hl
     ld a,(hl)                       ; Load the actual byte into A for printing
     call printHex2                  ; Print the actual byte in hexadecimal
     call crlf

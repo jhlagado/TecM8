@@ -17,37 +17,28 @@ testsStart:
     ; ; ------------------------------------------------------------
 
     ; call describe
-    ; .cstr "It should do nothing"
+    ; .cstr "parse opcode with a reg operand, an indexed indirect operand"
     
     ; call test
+    ; ; .db "jp nz,0"
+    ; .db "ld a,(ix + 0)"
     ; .db 0
 
-    ; call expect
-    ; .db 0
+    ; call expectOpData
+    ; .db LD_, reg_ | A_, MHL_ | mem_ | index_
 
     ; ; ------------------------------------------------------------
 
     ; call describe
-    ; .cstr "parse opcode without operands"
+    ; .cstr "parse opcode with a reg operand, an rp indirect operand"
     
     ; call test
-    ; .db "halt"
+    ; ; .db "jp nz,0"
+    ; .db "ld a,(hl)"
     ; .db 0
 
     ; call expectOpData
-    ; .db HALT_, -1, -1
-
-    ; ; ------------------------------------------------------------
-
-    ; call describe
-    ; .cstr "parse opcode with an immediate operand"
-    
-    ; call test
-    ; .db "jp 0"
-    ; .db 0
-
-    ; call expectOpData
-    ; .db JP_, -1, immed_
+    ; .db LD_, reg_ | A_, MHL_ | mem_
 
     ; ; ------------------------------------------------------------
 
@@ -63,18 +54,41 @@ testsStart:
 
     ; ; ------------------------------------------------------------
 
+    ; call describe
+    ; .cstr "It should do nothing"
+    
+    ; call test
+    ; .db 0
+
+    ; call expect
+    ; .db 0
+
+    ; ------------------------------------------------------------
+
+
     call describe
-    .cstr "parse opcode with a reg operand, an reg indirect operand"
+    .cstr "parse opcode with an immediate operand"
     
     call test
-    .db "jp nz,0"
-    ; .db "ld a,(hl)"
+    .db "jp 0"
     .db 0
 
     call expectOpData
-    .db JP_, NZ_, immed_
+    .db JP_, -1, -1, immed_, -1
 
     ; ------------------------------------------------------------
+
+    call describe
+    .cstr "parse opcode without operands"
+    
+    call test
+    .db "halt"
+    .db 0
+
+    call expectOpData
+    .db HALT_, -1, -1, -1, -1
+
+    ; ; ------------------------------------------------------------
 
     ; .cstr "It should assemble one instruction"
     ; call expect

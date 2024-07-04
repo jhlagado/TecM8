@@ -18,8 +18,8 @@ vExprPtr:   ds 2                ; pointer to last expression
 vHeapPtr:   ds 2                ; pointer to Heap
 
 vOpcode     ds 1
-vOperand1   ds 1
-vOperand2   ds 1
+vOperand1   ds 2                ; lsb = type, msb = val
+vOperand2   ds 2                ; lsb = type, msb = val
 vOpExpr     ds 2
 vOpDisp     ds 2
 

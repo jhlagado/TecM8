@@ -124,10 +124,11 @@ SET_        .equ  25 | gen2_
 reg_        .equ    0x00        
 rp_         .equ    0x08        
 flag_       .equ    0x10        
-immed_      .equ    0x18        
-mem_        .equ    0x20        
-indX_       .equ    0x80        
-indY_       .equ    0xC0        
+
+immed_      .equ    0x01        
+mem_        .equ    0x02        
+memHL_      .equ    0x04        
+index_      .equ    0x08        
 
 reg8_idx:                       ; 8-bit registers
 

@@ -146,15 +146,17 @@ statement:
     call isEndOfLine
     ret z
 
-    push af                     ; save token
-    ld a,-1
-    ld (vOpcode),a
-    ld (vOperand1),a
-    ld (vOperand2),a
+    push af                     ; save token type
+    push hl                     ; save token val
+    ld hl,-1                    ; operand H = value L = type
+    ld (vOperand1),hl
+    ld (vOperand2),hl
     xor a
+    ld (vOpcode),a
     ld (vOpExpr),a
     ld (vOpDisp),a
-    pop af                      ; restore token
+    pop hl                      ; restore token val
+    pop af                      ; restore token type
     cp LABEL_                   ; Check if it's a label
     jr nz,statement1            ; If not,jump to statement10
 
@@ -199,7 +201,7 @@ instruction:
     ret z                        ; Return if it is the end of the line
 
     call operand                 ; Parse the first operand
-    ld (vOperand1), a            ; Store the first operand in vOperand1
+    ld (vOperand1), hl           ; Store the first operand in vOperand1
     call nextToken               ; Get the next token
     cp COMMA_                    ; Check if the token is a comma
     jr nz, instruction1          ; If not, handle as a single operand instruction
@@ -209,10 +211,10 @@ instruction:
     jr z, parseError             ; Jump to parseError if it is the end of the line
 
     call operand                 ; Parse the second operand
-    ld (vOperand2), a            ; Store the second operand in vOperand2
+    ld (vOperand2), hl           ; Store the second operand in vOperand2
     call nextToken               ; Get the next token
     call isEndOfLine             ; Check if the end of the line is reached
-    jr nz, parseError            ; Jump to parseError if it is the end of the line
+    jp nz, parseError            ; Jump to parseError if it is the end of the line
     ret                          ; Return from the subroutine
 
 instruction1:
@@ -239,7 +241,8 @@ directive:
 ;    None (uses the current token from a token stream)
 ; 
 ; Outputs:
-;    A - Contains operand information
+;    H - Contains operand value
+;    L - Contains operand type.
 ; 
 ; Registers Destroyed:
 ;    A,B,DE,HL
@@ -254,7 +257,8 @@ operand:
 
     call expression             ; Otherwise,treat as an expression
     ld (vOpExpr),hl             ; Store the result of the operand expression
-    ld a,immed_                 ; Set A to indicate an immediate value
+    ld h,0
+    ld l,immed_                 ; Set A to indicate an immediate value
     ret
 
 operand1:
@@ -267,12 +271,15 @@ operand1:
 operand2:
     call expression             ; Treat as a new expression
     ld (vOpExpr),hl             ; Store the result of the expression
-    ld a,immed_ | mem_          ; Set A to indicate an immediate memory reference
+    ld h,0
+    ld l,immed_ | mem_          ; Set A to indicate an immediate memory reference
 
 operand7:
+    push HL                     ; save HL
     call nextToken              ; Get the next token
     cp RPAREN_                  ; Check if the next token is a right parenthesis
     jp nz,parseError            ; If not,handle as a parse error
+    pop HL                      ; restore HL
     ret
 
 ; *****************************************************************************
@@ -283,25 +290,24 @@ operand7:
 ;    appropriate flags based on the type of operand.
 ; 
 ; Inputs:
-;    HL - Points to the current token.
+;    HL - Points to the current token value.
 ; 
 ; Outputs:
-;    A - Contains operand information.
+;    H - Contains operand value
+;    L - Contains operand type.
 ; 
 ; Registers Destroyed:
 ;    AF, HL
 ; *****************************************************************************
 opElement:
-    ld a,l                      ; Otherwise,Load A with the lower byte of HL (operand)
+    ld a,h                      ; A = H = operand value
     cp IX_
     jr nz,opElement2
-    ld a,HL_|indX_
-    ret
-
-opElement2:
     cp IY_
     ret nz
-    ld a,HL_|indY_
+
+opElement2:
+    ld l,index_
     ret
 
 ; *****************************************************************************
@@ -321,33 +327,27 @@ opElement2:
 ;    AF, HL
 ; *****************************************************************************
 regPairIndirect:
-    ld a,l                      ; Otherwise,Load A with the lower byte of HL (operand)
+    ld a,h                      ; Otherwise,Load A with the lower byte of HL (operand)
     cp HL_
     jr nz,regPairIndirect2
-    ld a,MHL_|mem_
+    ld l,mem_ | memHL_
     ret
     
 regPairIndirect2:
     cp IX_
-    jr nz,regPairIndirect3
-    ld a,MHL_|indX_|mem_
-    jr regPairIndirect5
-
-regPairIndirect3:
+    jr z,regPairIndirect3
     cp IY_
-    jr nz,regPairIndirect4
-    ld a,MHL_|indY_| mem_
-    jr regPairIndirect5
+    jr z,regPairIndirect3
 
-regPairIndirect4:
-    or mem_                     ; Otherwise,set A to indicate a memory reference
+    ld l,mem_                   ; Otherwise,set A to indicate a memory reference
     ret
 
-regPairIndirect5:
-    push af                     ; Save HL on the stack
+regPairIndirect3:
+    ld l,mem_ | memHL_ | index_
+    push hl                     ; Save HL on the stack
     call expression             ; Treat as an expression
     ld (vOpDisp),hl             ; Store the result of the expression
-    pop af                      ; Restore HL from the stack
+    pop hl                      ; Restore HL from the stack
     ret
 
 ; *****************************************************************************
@@ -546,8 +546,6 @@ nextToken7:
 nextToken8:
     call searchOpElem
     jr nz,nextToken9
-    ld l,a                      ; hl = op element value
-    ld h,0
     ld a,OPELEM_                ; Return with OPELEM token
     ret
 
@@ -779,8 +777,8 @@ searchOpcode:
 ;    HL - Points to the start of the string to search for.
 ;
 ; Outputs:
-;    A  - The index of the matching op element if a match is found,or -1 if no
-;         match is found.
+;    H  - the value of the op element 
+;    L  - The type of the op element
 ;    ZF - Set if a match is found,cleared otherwise.
 ;
 ; Registers Destroyed:
@@ -790,16 +788,20 @@ searchOpcode:
 searchOpElem:
     ld de,reg8                  ; Point DE to the list of 8-bit register operands
     call searchStr              ; Search for the string in reg8 operands
+    ld l,a
+    ld h,reg_
     ret z                       ; If match found (ZF set),return
 
     ld de,reg16                 ; Point DE to the list of 16-bit register operands
     call searchStr              ; Search for the string in reg16 operands
-    set 3,a                     ; Set bit 3 in A to indicate a register pair operand
+    ld l,a
+    ld h,rp_ 
     ret z                       ; If match found (ZF set),return
 
     ld de,flags                 ; Point DE to the list of flag operands
     call searchStr              ; Search for the string in flag operands
-    set 4,a                     ; Set bit 4 in A to indicate flag operand
+    ld l,a
+    ld h,flag_ 
 
     ret                         ; Return ZF = match
 
