@@ -302,7 +302,7 @@ operand7:
 opElement:
     ld a,h                      ; A = H = operand value
     cp IX_
-    jr nz,opElement2
+    jr z,opElement2
     cp IY_
     ret nz
 
@@ -788,21 +788,24 @@ searchOpcode:
 searchOpElem:
     ld de,reg8                  ; Point DE to the list of 8-bit register operands
     call searchStr              ; Search for the string in reg8 operands
-    ld l,a
-    ld h,reg_
-    ret z                       ; If match found (ZF set),return
+    jr nz,searchOpElem1
+    ld h,a
+    ld l,reg_
+    ret                         ; If match found (ZF set),return
 
+searchOpElem1:
     ld de,reg16                 ; Point DE to the list of 16-bit register operands
     call searchStr              ; Search for the string in reg16 operands
-    ld l,a
-    ld h,rp_ 
-    ret z                       ; If match found (ZF set),return
+    jr nz,searchOpElem2
+    ld h,a
+    ld l,rp_ 
+    ret                         ; If match found (ZF set),return
 
+searchOpElem2:
     ld de,flags                 ; Point DE to the list of flag operands
     call searchStr              ; Search for the string in flag operands
-    ld l,a
-    ld h,flag_ 
-
+    ld h,a
+    ld l,flag_ 
     ret                         ; Return ZF = match
 
 ; *****************************************************************************

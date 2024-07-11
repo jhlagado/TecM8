@@ -40,28 +40,17 @@ testsStart:
     ; call expectOpData
     ; .db LD_, reg_ | A_, MHL_ | mem_
 
-    ; ; ------------------------------------------------------------
+    ; ------------------------------------------------------------
 
-    ; call describe
-    ; .cstr "parse opcode with a flag operand, an immediate operand"
+    call describe
+    .cstr "parse opcode with a flag operand, an immediate operand"
     
-    ; call test
-    ; .db "jp nz,0"
-    ; .db 0
+    call test
+    .db "jp nz,0"
+    .db 0
 
-    ; call expectOpData
-    ; .db JP_, NZ_, immed_
-
-    ; ; ------------------------------------------------------------
-
-    ; call describe
-    ; .cstr "It should do nothing"
-    
-    ; call test
-    ; .db 0
-
-    ; call expect
-    ; .db 0
+    call expectOpData
+    .db JP_, flag_, NZ_, immed_, -1
 
     ; ------------------------------------------------------------
 
@@ -88,7 +77,18 @@ testsStart:
     call expectOpData
     .db HALT_, -1, -1, -1, -1
 
-    ; ; ------------------------------------------------------------
+    ; ------------------------------------------------------------
+
+    call describe
+    .cstr "It should do nothing"
+    
+    call test
+    .db 0
+
+    call expect
+    .db 0
+
+    ; ------------------------------------------------------------
 
     ; .cstr "It should assemble one instruction"
     ; call expect

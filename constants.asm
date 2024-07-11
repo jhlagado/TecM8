@@ -145,25 +145,25 @@ R_          .equ    9           ; R
 
 reg16_idx:                      ; 16-bit registers
 
-BC_         .equ    0 | rp_
-DE_         .equ    1 | rp_
-HL_         .equ    2 | rp_
-SP_         .equ    3 | rp_
-IX_         .equ    5 | rp_
-IY_         .equ    6 | rp_
-AFP_        .equ    4 | rp_    ; AF' (prime)
-AF_         .equ    7 | rp_    ; NOTE: AF has the same code as SP in some instructions
+BC_         .equ    0 
+DE_         .equ    1 
+HL_         .equ    2 
+SP_         .equ    3 
+IX_         .equ    5 
+IY_         .equ    6 
+AFP_        .equ    4           ; AF' (prime)
+AF_         .equ    7           ; NOTE: AF has the same code as SP in some instructions
 
 flag_idx:
 
-NZ_         .equ    0 | flag_
-Z_          .equ    1 | flag_
-NC_         .equ    2 | flag_
-C_          .equ    3 | flag_
-PO_         .equ    4 | flag_
-PE_         .equ    5 | flag_
-P_          .equ    6 | flag_
-M_          .equ    7 | flag_
+NZ_         .equ    0 
+Z_          .equ    1 
+NC_         .equ    2 
+C_          .equ    3 
+PO_         .equ    4 
+PE_         .equ    5 
+P_          .equ    6 
+M_          .equ    7 
 
 directive_idx:
 
