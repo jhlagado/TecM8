@@ -264,7 +264,7 @@ operand:
 operand1:
     call nextToken              ; Memory reference. Get the next token
     cp OPELEM_                  ; Check if the next token is an op element
-    jr nz,operand2               ; If not,handle as an expression inside parentheses
+    jr nz,operand2              ; If not,handle as an expression inside parentheses
     call regPairIndirect
     jr operand7
     
@@ -307,7 +307,7 @@ opElement:
     ret nz
 
 opElement2:
-    ld l,index_
+    ld l,index_ | rp_
     ret
 
 ; *****************************************************************************
@@ -324,26 +324,35 @@ opElement2:
 ;    A - Contains operand information.
 ; 
 ; Registers Destroyed:
-;    AF, HL
+;    AF
 ; *****************************************************************************
 regPairIndirect:
-    ld a,h                      ; Otherwise,Load A with the lower byte of HL (operand)
+    ld a,l                      ; A = operand type
+    cp flag_                    ; is type reg_ or rp_ ? no then error
+    jp z,parseError
+    cp reg_
+    jr z,regPairIndirect1
+    ld a,h                      ; A = operand value, type = rp
     cp HL_
-    jr nz,regPairIndirect2
-    ld l,mem_ | memHL_
-    ret
-    
-regPairIndirect2:
+    jr z,regPairIndirect2
     cp IX_
     jr z,regPairIndirect3
     cp IY_
     jr z,regPairIndirect3
+    ld l,mem_ | rp_             ; Otherwise,set A to indicate a memory reference
+    ret
 
-    ld l,mem_                   ; Otherwise,set A to indicate a memory reference
+regPairIndirect1:
+    ld a,h                      ; A = operand value, type = reg
+    cp C_
+    jp nz,parseError
+
+regPairIndirect2:
+    ld l,mem_ | reg_            ; (c) or (hl)
     ret
 
 regPairIndirect3:
-    ld l,mem_ | memHL_ | index_
+    ld l,mem_ | reg_ | index_   ; (ix+disp) or (iy+disp)
     push hl                     ; Save HL on the stack
     call expression             ; Treat as an expression
     ld (vOpDisp),hl             ; Store the result of the expression
@@ -676,52 +685,6 @@ ident3:
     ret                     
 
 ; *****************************************************************************
-; Routine: searchStr
-; 
-; Purpose:
-;    Search through a list of Pascal STRINGS for a match.
-; 
-; Inputs:
-;    HL - Points to the string to search for.
-;    DE - Points to the start of the list of STRINGS.
-; 
-; Outputs:
-;    ZF - True if match,false otherwise.
-;    A - Index of the matching string if a match is found,or -1 if no match 
-;        is found.
-;    HL - Points to the string to search for.
-; 
-; Destroyed:
-;    A,B,C,D,E,A',F'
-; *****************************************************************************
-
-searchStr:
-    ld b,0                      ; init b with index 0 
-
-searchStr1:
-    call compareStr             ; compare strings    
-    jr nz,searchStr3
-    ld a,b                      ; Load index of match
-    ret                         ; ZF = true
-
-searchStr3:
-    ld a,(de)                   ; Load length of current string
-    inc a                       ; A = length byte plus length of string
-    
-    add a,e                     ; DE += A, move DE to point to next string     
-    ld e,a
-    ld a,0
-    adc a,d
-    ld d,a
-    
-    inc b                       ; increase index
-    ld a,(de)                   ; A = length of next string
-    or a                        ; If A != 0,continue searching
-    jr nz,searchStr1
-    dec a                       ; A = NO_MATCH (i.e.,-1),ZF = false
-    ret
-   
-; *****************************************************************************
 ; Routine: searchOpcode
 ; 
 ; Purpose:
@@ -809,6 +772,52 @@ searchOpElem2:
     ret                         ; Return ZF = match
 
 ; *****************************************************************************
+; Routine: searchStr
+; 
+; Purpose:
+;    Search through a list of Pascal STRINGS for a match.
+; 
+; Inputs:
+;    HL - Points to the string to search for.
+;    DE - Points to the start of the list of STRINGS.
+; 
+; Outputs:
+;    ZF - True if match,false otherwise.
+;    A - Index of the matching string if a match is found,or -1 if no match 
+;        is found.
+;    HL - Points to the string to search for.
+; 
+; Destroyed:
+;    A,B,C,D,E,A',F'
+; *****************************************************************************
+
+searchStr:
+    ld b,0                      ; init b with index 0 
+
+searchStr1:
+    call compareStr             ; compare strings    
+    jr nz,searchStr3
+    ld a,b                      ; Load index of match
+    ret                         ; ZF = true
+
+searchStr3:
+    ld a,(de)                   ; Load length of current string
+    inc a                       ; A = length byte plus length of string
+    
+    add a,e                     ; DE += A, move DE to point to next string     
+    ld e,a
+    ld a,0
+    adc a,d
+    ld d,a
+    
+    inc b                       ; increase index
+    ld a,(de)                   ; A = length of next string
+    or a                        ; If A != 0,continue searching
+    jr nz,searchStr1
+    dec a                       ; A = NO_MATCH (i.e.,-1),ZF = false
+    ret
+   
+; *****************************************************************************
 ; Routine: compareStr
 ; 
 ; Purpose:
@@ -871,27 +880,27 @@ isEndOfLine:
     cp NEWLN_                   ; Compare the current character with NEWLN_
     ret                         ; Return (Z flag set if NEWLN_, cleared otherwise)
 
-; *****************************************************************************
-; Routine: isIndexReg
-; 
-; Purpose:
-;    Checks if the current operand is an index register (IX or IY).
-; 
-; Inputs:
-;    A - The operand to check.
-; 
-; Outputs:
-;    ZF - Set if the operand is an index register (IX or IY).
-; 
-; Registers Destroyed:
-;    None
-; *****************************************************************************
+; ; *****************************************************************************
+; ; Routine: isIndexReg
+; ; 
+; ; Purpose:
+; ;    Checks if the current operand is an index register (IX or IY).
+; ; 
+; ; Inputs:
+; ;    A - The operand to check.
+; ; 
+; ; Outputs:
+; ;    ZF - Set if the operand is an index register (IX or IY).
+; ; 
+; ; Registers Destroyed:
+; ;    None
+; ; *****************************************************************************
 
-isIndexReg:
-    cp IX_                      ; Compare operand with IX
-    ret z                       ; Return if equal (ZF is set)
-    cp IY_                      ; Compare operand with IY
-    ret                         ; Return (ZF is set if equal,cleared otherwise)
+; isIndexReg:
+;     cp IX_                      ; Compare operand with IX
+;     ret z                       ; Return if equal (ZF is set)
+;     cp IY_                      ; Compare operand with IY
+;     ret                         ; Return (ZF is set if equal,cleared otherwise)
 
 ; *****************************************************************************
 ; Routine: isAlphaNum

@@ -20,25 +20,23 @@ testsStart:
     ; .cstr "parse opcode with a reg operand, an indexed indirect operand"
     
     ; call test
-    ; ; .db "jp nz,0"
     ; .db "ld a,(ix + 0)"
     ; .db 0
 
     ; call expectOpData
     ; .db LD_, reg_ | A_, MHL_ | mem_ | index_
 
-    ; ; ------------------------------------------------------------
+    ; ------------------------------------------------------------
 
-    ; call describe
-    ; .cstr "parse opcode with a reg operand, an rp indirect operand"
+    call describe
+    .cstr "parse opcode with a reg operand, an rp indirect operand"
     
-    ; call test
-    ; ; .db "jp nz,0"
-    ; .db "ld a,(hl)"
-    ; .db 0
+    call test
+    .db "ld a,(hl)"
+    .db 0
 
-    ; call expectOpData
-    ; .db LD_, reg_ | A_, MHL_ | mem_
+    call expectOpData
+    .db LD_, reg_ , A_, reg_ | mem_, HL_
 
     ; ------------------------------------------------------------
 
