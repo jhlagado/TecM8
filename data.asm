@@ -106,10 +106,10 @@ reg16:
 .pstr "DE"
 .pstr "HL"
 .pstr "SP"
-.pstr "IX"
-.pstr "IY"
 .pstr "AF'"
 .pstr "AF"                  ; NOTE: AF has the same code as SP in some instructions
+.pstr "IX"
+.pstr "IY"
 .pstr ""                    ; terminate list with a string of zero length
 
 flags:

@@ -14,17 +14,29 @@
 testsStart:
     ld sp,STACK
 
-    ; ; ------------------------------------------------------------
+    ; ------------------------------------------------------------
 
     ; call describe
     ; .cstr "parse opcode with a reg operand, an indexed indirect operand"
     
     ; call test
-    ; .db "ld a,(ix + 0)"
+    ; .db "in a,(c)"
     ; .db 0
 
     ; call expectOpData
-    ; .db LD_, reg_ | A_, MHL_ | mem_ | index_
+    ; .db LD_, reg_ , A_, reg_ | mem_ |index_ , IX_
+
+    ; ------------------------------------------------------------
+
+    call describe
+    .cstr "parse opcode with a reg operand, an indexed rp indirect operand"
+    
+    call test
+    .db "ld a,(ix + 0)"
+    .db 0
+
+    call expectOpData
+    .db LD_, reg_ , A_, rp_ | indirect_ |index_ , IX_
 
     ; ------------------------------------------------------------
 
@@ -36,7 +48,7 @@ testsStart:
     .db 0
 
     call expectOpData
-    .db LD_, reg_ , A_, reg_ | mem_, HL_
+    .db LD_, reg_ , A_, rp_ | indirect_, HL_
 
     ; ------------------------------------------------------------
 

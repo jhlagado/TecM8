@@ -250,7 +250,8 @@ directive:
 
 operand:
     cp OPELEM_                  ; Check if the token is an op element i.e. reg,rp or flag
-    jr z,opElement
+    ; jr z,opElement
+    ret z
 
     cp LPAREN_                  ; Check if the token is a left parenthesis
     jr z,operand1               ; If so,handle as a memory reference
@@ -265,14 +266,14 @@ operand1:
     call nextToken              ; Memory reference. Get the next token
     cp OPELEM_                  ; Check if the next token is an op element
     jr nz,operand2              ; If not,handle as an expression inside parentheses
-    call regPairIndirect
+    call regIndirect
     jr operand7
     
 operand2:
     call expression             ; Treat as a new expression
     ld (vOpExpr),hl             ; Store the result of the expression
     ld h,0
-    ld l,immed_ | mem_          ; Set A to indicate an immediate memory reference
+    ld l,immed_ | ind_          ; Set A to indicate an immediate memory reference
 
 operand7:
     push HL                     ; save HL
@@ -282,36 +283,41 @@ operand7:
     pop HL                      ; restore HL
     ret
 
-; *****************************************************************************
-; Routine: opElement
-; 
-; Purpose:
-;    Parses the op element (registers, register pairs, flags) sets the
-;    appropriate flags based on the type of operand.
-; 
-; Inputs:
-;    HL - Points to the current token value.
-; 
-; Outputs:
-;    H - Contains operand value
-;    L - Contains operand type.
-; 
-; Registers Destroyed:
-;    AF, HL
-; *****************************************************************************
-opElement:
-    ld a,h                      ; A = H = operand value
-    cp IX_
-    jr z,opElement2
-    cp IY_
-    ret nz
+; ; *****************************************************************************
+; ; Routine: opElement
+; ; 
+; ; Purpose:
+; ;    Parses the op element (registers, register pairs, flags) sets the
+; ;    appropriate flags based on the type of operand.
+; ; 
+; ; Inputs:
+; ;    HL - Points to the current token value.
+; ; 
+; ; Outputs:
+; ;    H - Contains operand value
+; ;    L - Contains operand type.
+; ; 
+; ; Registers Destroyed:
+; ;    AF, HL
+; ; *****************************************************************************
+; opElement:
+;     ld a,l
+;     cp rp_
+;     ret nz
+;     ld a,h                      ; A = H = operand value
+;     cp IX_
+;     jr z,opElement2
+;     cp IY_
+;     ret nz
 
-opElement2:
-    ld l,index_ | rp_
-    ret
+; opElement2:
+;     ld a,l
+;     or index_
+;     ld l,a
+;     ret
 
 ; *****************************************************************************
-; Routine: regPairIndirect
+; Routine: regIndirect
 ; 
 ; Purpose:
 ;    Parses the register indirect memory address sets the
@@ -326,37 +332,32 @@ opElement2:
 ; Registers Destroyed:
 ;    AF
 ; *****************************************************************************
-regPairIndirect:
+regIndirect:
     ld a,l                      ; A = operand type
-    cp flag_                    ; is type reg_ or rp_ ? no then error
-    jp z,parseError
-    cp reg_
-    jr z,regPairIndirect1
-    ld a,h                      ; A = operand value, type = rp
-    cp HL_
-    jr z,regPairIndirect2
-    cp IX_
-    jr z,regPairIndirect3
-    cp IY_
-    jr z,regPairIndirect3
-    ld l,mem_ | rp_             ; Otherwise,set A to indicate a memory reference
-    ret
-
-regPairIndirect1:
+    cp reg_                     ; is reg?
+    jr nz,regIndirect1
     ld a,h                      ; A = operand value, type = reg
-    cp C_
-    jp nz,parseError
+    cp C_                       ; (C)
+    jr z,regIndirect4
+    jp parseError
 
-regPairIndirect2:
-    ld l,mem_ | reg_            ; (c) or (hl)
-    ret
+regIndirect1:
+    cp rp_ | index_             ; is it IX, IY?
+    jr z, regIndirect3         
+    cp rp_                      ; is it BC, DE, HL?
+    jr z, regIndirect4          
+    jp parseError
 
-regPairIndirect3:
-    ld l,mem_ | reg_ | index_   ; (ix+disp) or (iy+disp)
+regIndirect3:
     push hl                     ; Save HL on the stack
     call expression             ; Treat as an expression
     ld (vOpDisp),hl             ; Store the result of the expression
     pop hl                      ; Restore HL from the stack
+
+regIndirect4:
+    ld a,l
+    or indirect_              ; indirect 
+    ld l,a                      
     ret
 
 ; *****************************************************************************
@@ -749,28 +750,42 @@ searchOpcode:
 ; *****************************************************************************
 
 searchOpElem:
-    ld de,reg8                  ; Point DE to the list of 8-bit register operands
+    ld de,flags                 ; Point DE to the list of flag operands
     call searchStr              ; Search for the string in reg8 operands
     jr nz,searchOpElem1
+    ld h,a
+    ld l,flag_ 
+    ret                         ; If match found (ZF set),return
+
+searchOpElem1:
+    ld de,reg8                  ; Point DE to the list of 8-bit register operands
+    call searchStr              ; Search for the string in reg16 operands
+    jr nz,searchOpElem2
     ld h,a
     ld l,reg_
     ret                         ; If match found (ZF set),return
 
-searchOpElem1:
-    ld de,reg16                 ; Point DE to the list of 16-bit register operands
-    call searchStr              ; Search for the string in reg16 operands
-    jr nz,searchOpElem2
-    ld h,a
-    ld l,rp_ 
-    ret                         ; If match found (ZF set),return
-
 searchOpElem2:
-    ld de,flags                 ; Point DE to the list of flag operands
+    ld de,reg16                 ; Point DE to the list of 16-bit register operands
     call searchStr              ; Search for the string in flag operands
-    ld h,a
-    ld l,flag_ 
-    ret                         ; Return ZF = match
+    ret nz                      ; not found if ZF is clear
 
+    ld h,a                      
+    ld l,rp_ 
+    cp IX_                      ; check if a is IX or IY
+    jr z,searchOpElem3
+    cp IY_
+    jr nz,searchOpElem4         ; Return ZF = match
+
+searchOpElem3:
+    ld a,index_
+    or l
+    ld l,a
+
+searchOpElem4:
+    xor a                       ; set ZF
+    ret 
+    
 ; *****************************************************************************
 ; Routine: searchStr
 ; 
@@ -879,28 +894,6 @@ isEndOfLine:
     ret z                       ; Return if the current character is EOF (Z flag set)
     cp NEWLN_                   ; Compare the current character with NEWLN_
     ret                         ; Return (Z flag set if NEWLN_, cleared otherwise)
-
-; ; *****************************************************************************
-; ; Routine: isIndexReg
-; ; 
-; ; Purpose:
-; ;    Checks if the current operand is an index register (IX or IY).
-; ; 
-; ; Inputs:
-; ;    A - The operand to check.
-; ; 
-; ; Outputs:
-; ;    ZF - Set if the operand is an index register (IX or IY).
-; ; 
-; ; Registers Destroyed:
-; ;    None
-; ; *****************************************************************************
-
-; isIndexReg:
-;     cp IX_                      ; Compare operand with IX
-;     ret z                       ; Return if equal (ZF is set)
-;     cp IY_                      ; Compare operand with IY
-;     ret                         ; Return (ZF is set if equal,cleared otherwise)
 
 ; *****************************************************************************
 ; Routine: isAlphaNum

@@ -121,13 +121,15 @@ RRCA_       .equ  23 | gen2_
 RRD_        .equ  24 | gen2_
 SET_        .equ  25 | gen2_
 
-reg_        .equ    0x00        ; operand types        
-rp_         .equ    0x01        
-flag_       .equ    0x02        
-immed_      .equ    0x03        
+; operand types        
 
-mem_        .equ    0x04        ; modifiers
-index_      .equ    0x08
+immed_      .equ    0x00        ; immediate
+flag_       .equ    0x01        ; flag
+reg_        .equ    0x02        ; 8 bit reg        
+rp_         .equ    0x03        ; 16 bit reg pair
+
+indirect_:  .equ    0x04        ; indirect HL    
+index_:     .equ    0x08        ; index reg
 
 reg8_idx:                       ; 8-bit registers
 
@@ -148,10 +150,10 @@ BC_         .equ    0
 DE_         .equ    1 
 HL_         .equ    2 
 SP_         .equ    3 
-IX_         .equ    4 
-IY_         .equ    5 
-AFP_        .equ    6           ; AF' (prime)
-AF_         .equ    7           ; NOTE: AF has the same code as SP in some instructions
+AFP_        .equ    4           ; AF' (prime)
+AF_         .equ    5           ; NOTE: AF has the same code as SP in some instructions
+IX_         .equ    6 
+IY_         .equ    7 
 
 flag_idx:
 
