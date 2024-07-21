@@ -36,8 +36,8 @@
 start:
     ld sp,STACK                 ; Initialize STACK pointer
     call init                   ; Call initialization routine
-    call print                  ; Print TecM8 version information
-    .cstr "TecM8 0.0\r\n"
+    call print                 ; Print TecM8 version information
+    .pstr "TecM8 0.0\r\n"
     jp parse                    ; Jump to the parsing routine
 
 ; *****************************************************************************
@@ -92,11 +92,12 @@ init:
 parse:
     call statementList         ; Parse the input program
     call print                 ; Print completion message
-    .cstr "Parsing completed successfully."
+    .pstr "Parsing completed successfully."
     halt                       
 
 parseError:
-    .cstr "Unexpected token."
+    call print                 ; Print completion message
+    .pstr "\r\nUnexpected token."
     halt                       
 
 ; *****************************************************************************
@@ -149,10 +150,11 @@ statement:
     push af                     ; save token type
     push hl                     ; save token val
     ld hl,-1                    ; operand H = value L = type
-    ld (vOperand1),hl
-    ld (vOperand2),hl
+    ld (vOp1),hl
+    ld (vOp2),hl
     xor a
     ld (vOpcode),a
+    ld (vIsBranch),a
     ld (vOpExpr),a
     ld (vOpDisp),a
     pop hl                      ; restore token val
@@ -166,7 +168,7 @@ statement:
 
 statement1:
     cp OPCODE_                  ; Check if it's an opcode
-    jr z,instruction            ; Jump to parseInstruction routine
+    jr z,instr                  ; Jump to instr routine
 
     cp DIRECT_                  ; Check if it's a directive
     jr z,directive
@@ -174,83 +176,118 @@ statement1:
     ret
 
 ; *****************************************************************************
-; Routine: instruction
+; Routine: instr
 ; 
 ; Purpose:
-;    Parses an instruction and its operands. Stores the opcode and operands 
-;    in the corresponding variables. Handles both single and double operand 
-;    instructions.
+;    Parses an instruction and its operands from the current token. This routine 
+;    identifies the opcode and determines whether the instruction has one or 
+;    two operands. It stores the parsed opcode and operands in the corresponding 
+;    variables. Handles both single and double operand instructions and manages 
+;    specific cases such as branch instructions and special operand types.
 ; 
 ; Inputs:
-;    HL - Points to the current token (opcode).
+;    HL - Points to the current token (opcode) to be parsed.
 ; 
 ; Outputs:
 ;    vOpcode - Stores the parsed opcode.
-;    vOperand1 - Stores the first operand or -1 if there is only one operand.
-;    vOperand2 - Stores the second operand.
+;    vOp1 - Stores the first operand or -1 if there is only one operand.
+;    vOp2 - Stores the second operand if present.
 ; 
 ; Registers Destroyed:
-;    A, AF
+;    A, B, H, L 
+; 
+; Flow:
+;    - Load the opcode into register A and store it in `vOpcode`.
+;    - Compare the opcode with known instruction types (e.g., JP, JR, CALL, RET).
+;    - If the opcode indicates a branch instruction, set the `vIsBranch` flag.
+;    - Proceed to parse the first operand, handling special cases like flag registers.
+;    - Check if there is a comma indicating a second operand, and if so, parse it.
+;    - Manage cases with one operand by moving it to `vOp2` and setting `vOp1` to -1.
+;    - Handle errors if the instruction format is invalid or if operands are missing.
+; 
+; Notes:
+;    - The routine calls other subroutines such as `nextToken`, `isEndOfLine`, and `operand`.
+;    - Special handling is implemented for immediate values and memory references.
+;    - The routine also manages parentheses and operand expressions.
 ; *****************************************************************************
 
-instruction:
-    ld a, l                      ; Load the current token (opcode) into A
-    ld (vOpcode), a              ; Store the opcode in vOpcode
-    call nextToken               ; Get the next token
-    call isEndOfLine             ; Check if the end of the line is reached
-    ret z                        ; Return if it is the end of the line
+instr:
+    ld a, l                     ; Load the current token (opcode) into A
+    ld (vOpcode), a             ; Store the opcode in vOpcode
+    cp JP_                      ; Compare opcode with JP (Jump)
+    jr z,instr1                       
+    cp JR_                      ; Compare opcode with JR (Jump Relative)
+    jr z,instr1                       
+    cp CALL_                    ; Compare opcode with CALL (Call Subroutine)
+    jr z,instr1                       
+    cp RET_                     ; Compare opcode with RET (Return)
+    jr nz,instr2                       
 
-    call operand                 ; Parse the first operand
-    ld (vOperand1), hl           ; Store the first operand in vOperand1
-    call nextToken               ; Get the next token
-    cp COMMA_                    ; Check if the token is a comma
-    jr nz, instruction1          ; If not, handle as a single operand instruction
+instr1:
+    xor a                       ; set isBranch to true    
+    dec a
+    ld (vIsBranch),a
+    
+instr2:
 
-    call nextToken               ; Get the next token
-    call isEndOfLine             ; Check if the end of the line is reached
-    jr z, parseError             ; Jump to parseError if it is the end of the line
+    call nextToken              ; Get the next token
+    call isEndOfLine            ; Check if the end of the line is reached
+    ret z                       ; Return if it is the end of the line
 
-    call operand                 ; Parse the second operand
-    ld (vOperand2), hl           ; Store the second operand in vOperand2
-    call nextToken               ; Get the next token
-    call isEndOfLine             ; Check if the end of the line is reached
-    jp nz, parseError            ; Jump to parseError if it is the end of the line
-    ret                          ; Return from the subroutine
+    ld b,a                      ; save token type, so we can deal with ambiguity of "C"    
+    ld a,(vIsBranch)            ; A = isBranch flag
+    inc a
+    jr nz,instr3
+    ld a,l                      ; Check if the operand type is a reg
+    cp reg_                   
+    jr nz,instr3
+    ld a,h                      ; Check if the operand value is a C register
+    cp C_                                      
+    jr nz,instr3
+    ld l,flag_                  ; Set operand type to flag
+    ld h,CF_                    ; Set operand value to carry flag
+    ld a,b                      ; restore token type
+    jr instr4
 
-instruction1:
-    push af                      ; Save the token type (AF)
-    ld a, (vOperand1)            ; Load the first operand into A
-    ld (vOperand2), a            ; Move the first operand to vOperand2
-    ld a, -1                     ; Set vOperand1 to default value -1 (no operand)
-    ld (vOperand1), a            ; Store the default value in vOperand1
-    pop af                       ; Restore the token type (AF)
-    ret                          ; Return from the subroutine
+instr3:
+    ld a,b                      ; restore token type
+    call operand                ; only call operand if we didnt correct to C register
+
+instr4:
+    ld (vOp1),hl                ; Store the first operand in vOp1
+    call nextToken              ; Get the next token
+    cp COMMA_                   ; Check if the token is a comma
+    jr nz, instr5               ; If not, handle as a single operand instruction
+
+    call nextToken              ; Get the next token
+    call isEndOfLine            ; Check if the end of the line is reached
+    jp z, parseError            ; Jump to parseError if it is the end of the line
+
+    call operand                ; Parse the second operand
+    ld (vOp2),hl                ; Store the second operand in vOp2
+    call nextToken              ; Get the next token
+    call isEndOfLine            ; Check if the end of the line is reached
+    jp nz, parseError           ; Jump to parseError if it is the end of the line
+    ret                         ; Return from the subroutine
+
+instr5:
+    ld b,a                      ; save token type
+    ld a,(vOp1Type)             ; if operand is a flag don's shift to operand2
+    cp flag_
+    jr z,instr6
+    ld hl,(vOp1)                ; Move Op1 to vOp2
+    ld (vOp2),hl                ; 
+    ld hl, -1                   ; Set vOp1 to default value -1 (no operand)
+    ld (vOp1),hl                ; 
+instr6:
+    ld a,b                      ; restore token type
+    ret                         ; Return from the subroutine
 
 directive:    
     ret
 
-; *****************************************************************************
-; Routine: operand
-; 
-; Purpose:
-;    Parses and identifies different types of operands (registers,memory,
-;    immediate values,etc.) used in assembly instructions. Sets the appropriate
-;    flags based on the operand type.
-; 
-; Inputs:
-;    None (uses the current token from a token stream)
-; 
-; Outputs:
-;    H - Contains operand value
-;    L - Contains operand type.
-; 
-; Registers Destroyed:
-;    A,B,DE,HL
-; *****************************************************************************
-
 operand:
     cp OPELEM_                  ; Check if the token is an op element i.e. reg,rp or flag
-    ; jr z,opElement
     ret z
 
     cp LPAREN_                  ; Check if the token is a left parenthesis
@@ -282,39 +319,6 @@ operand7:
     jp nz,parseError            ; If not,handle as a parse error
     pop HL                      ; restore HL
     ret
-
-; ; *****************************************************************************
-; ; Routine: opElement
-; ; 
-; ; Purpose:
-; ;    Parses the op element (registers, register pairs, flags) sets the
-; ;    appropriate flags based on the type of operand.
-; ; 
-; ; Inputs:
-; ;    HL - Points to the current token value.
-; ; 
-; ; Outputs:
-; ;    H - Contains operand value
-; ;    L - Contains operand type.
-; ; 
-; ; Registers Destroyed:
-; ;    AF, HL
-; ; *****************************************************************************
-; opElement:
-;     ld a,l
-;     cp rp_
-;     ret nz
-;     ld a,h                      ; A = H = operand value
-;     cp IX_
-;     jr z,opElement2
-;     cp IY_
-;     ret nz
-
-; opElement2:
-;     ld a,l
-;     or index_
-;     ld l,a
-;     ret
 
 ; *****************************************************************************
 ; Routine: regIndirect
@@ -750,19 +754,19 @@ searchOpcode:
 ; *****************************************************************************
 
 searchOpElem:
-    ld de,flags                 ; Point DE to the list of flag operands
+    ld de,reg8                  ; Point DE to the list of 8-bit register operands
     call searchStr              ; Search for the string in reg8 operands
     jr nz,searchOpElem1
     ld h,a
-    ld l,flag_ 
+    ld l,reg_
     ret                         ; If match found (ZF set),return
 
 searchOpElem1:
-    ld de,reg8                  ; Point DE to the list of 8-bit register operands
+    ld de,flags                 ; Point DE to the list of flag operands
     call searchStr              ; Search for the string in reg16 operands
     jr nz,searchOpElem2
     ld h,a
-    ld l,reg_
+    ld l,flag_ 
     ret                         ; If match found (ZF set),return
 
 searchOpElem2:
@@ -1127,8 +1131,8 @@ nextLine3:
     dec hl                      ; Move back in the buffer
     inc b                       ; Adjust buffer size counter
 
-    call print                  ; Erase the character at the current cursor position
-    .cstr ESC,"[P"              ; Escape sequence for erasing character
+    call print                 ; Erase the character at the current cursor position
+    .pstr ESC,"[P"              ; Escape sequence for erasing character
     jr nextLine1
 
 nextLine4:    
@@ -1201,8 +1205,8 @@ rewindChar:
 ; *****************************************************************************
 
 prompt:                            
-    call print                  ; Print the null-terminated string (prompt message)
-    .cstr "\r\n> "              ; Define the prompt message
+    call print                 ; Print the null-terminated string (prompt message)
+    .pstr "\r\n> "              ; Define the prompt message
     ret                         ; Return to the caller
 
 ; *****************************************************************************
@@ -1223,7 +1227,7 @@ prompt:
 
 crlf:                               
     call print                  ; Print the null-terminated string (carriage return and line feed)
-    .cstr "\r\n"                ; Define the carriage return and line feed message
+    .pstr "\r\n"                ; Define the carriage return and line feed message
     ret                         ; Return to the caller
 
 ; *****************************************************************************
@@ -1251,7 +1255,7 @@ error:
 ; Routine: print
 ; 
 ; Purpose:
-;    Prints a null-terminated string starting from the address in HL.
+;    Prints a pascal string starting from the address in HL.
 ; 
 ; Inputs:
 ;    HL - Points to the start of the string to be printed
@@ -1260,15 +1264,14 @@ error:
 ;    None
 ; 
 ; Registers Destroyed:
-;    None
+;    A, B
 ; *****************************************************************************
 
-print:                           
+print:
     ex (sp),hl                  ; Swap HL with the value on the stack to preserve HL
-    call printZStr              ; Call the routine to print the null-terminated string
-    inc hl                      ; Increment HL to skip the null terminator
-    ex (sp),hl                  ; Restore the original value of HL from the stack
-    ret                         ; Return to the caller
+    call printStr
+    ex (sp),hl
+    ret
 
 ; *****************************************************************************
 ; Routine: printStr
@@ -1298,35 +1301,6 @@ printStr1:
     inc hl                      ; Move to the next character
     djnz printStr1              ; Decrement B and jump if not zero
     ret                         ; Return from the routine
-
-; *****************************************************************************
-; Routine: printZStr
-; 
-; Purpose:
-;    Prints a null-terminated string stored in memory. 
-; 
-; Inputs:
-;    HL - Points to the start of the string to be printed
-; 
-; Outputs:
-;    None
-; 
-; Registers Destroyed:
-;    A,HL
-; *****************************************************************************
-
-printZStr:
-    jr printZStr2               ; Jump to the loop condition
-
-printZStr1:                            
-    call putchar                ; Print the current character
-    inc hl                      ; Move to the next character
-
-printZStr2:
-    ld a,(hl)                   ; Load the current character
-    or a                        ; Check if the character is null
-    jr nz,printZStr1            ; If not null,continue printing
-    ret                         ; Return when null character is encountered
 
 ; *****************************************************************************
 ; Routine: hpush

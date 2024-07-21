@@ -16,12 +16,18 @@ vAsmPtr:    ds 2                ; pointer to ASSEMBLY point
 vSymPtr:    ds 2                ; pointer to last symbol
 vExprPtr:   ds 2                ; pointer to last expression
 vHeapPtr:   ds 2                ; pointer to Heap
+vIsBranch:  ds 1
 
-vOpcode     ds 1
-vOperand1   ds 2                ; lsb = type, msb = val
-vOperand2   ds 2                ; lsb = type, msb = val
-vOpExpr     ds 2
-vOpDisp     ds 2
+vOpcode:    ds 1                ; must be contiguous for expect
+vOp1:                           ; operand1 lsb = type, msb = val
+vOp1Type:   ds 1
+vOp1Val:    ds 1
+vOp2:                           ; operand2 lsb = type, msb = val
+vOp2Type:   ds 1
+vOp2Val:    ds 1
+
+vOpExpr:    ds 2
+vOpDisp:    ds 2
 
 
 RST08:      ds 2                 

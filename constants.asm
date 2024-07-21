@@ -131,10 +131,21 @@ rp_         .equ    0x03        ; 16 bit reg pair
 indirect_:  .equ    0x04        ; indirect HL    
 index_:     .equ    0x08        ; index reg
 
+flag_idx:
+
+NZ_         .equ    0 
+Z_          .equ    1 
+NC_         .equ    2 
+CF_         .equ    3           ; note: carry flag is CF_
+PO_         .equ    4 
+PE_         .equ    5 
+P_          .equ    6 
+M_          .equ    7 
+
 reg8_idx:                       ; 8-bit registers
 
 B_          .equ    0           ; B
-C_          .equ    1           ; C
+C_          .equ    1           ; C note: C register is C_
 D_          .equ    2           ; D
 E_          .equ    3           ; E
 H_          .equ    4           ; H
@@ -154,17 +165,6 @@ AFP_        .equ    4           ; AF' (prime)
 AF_         .equ    5           ; NOTE: AF has the same code as SP in some instructions
 IX_         .equ    6 
 IY_         .equ    7 
-
-flag_idx:
-
-NZ_         .equ    0 
-Z_          .equ    1 
-NC_         .equ    2 
-C_          .equ    3 
-PO_         .equ    4 
-PE_         .equ    5 
-P_          .equ    6 
-M_          .equ    7 
 
 directive_idx:
 

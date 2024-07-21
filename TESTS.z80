@@ -14,84 +14,89 @@
 testsStart:
     ld sp,STACK
 
-    ; ------------------------------------------------------------
+    ; ; ------------------------------------------------------------
 
-    ; call describe
-    ; .cstr "parse opcode with a reg operand, an indexed indirect operand"
-    
-    ; call test
-    ; .db "in a,(c)"
+    ; call generate
+    ; .db "ld a,1"
     ; .db 0
 
-    ; call expectOpData
-    ; .db LD_, reg_ , A_, reg_ | mem_ |index_ , IX_
+    ; call expect
+    ; ld a,1
 
     ; ------------------------------------------------------------
 
-    call describe
-    .cstr "parse opcode with a reg operand, an indexed rp indirect operand"
-    
+    call test
+    .db "out (c),a"
+    .db 0
+
+    call expectOps
+    .db OUT_, reg_ | indirect_ , C_, reg_ , A_
+
+    ; ------------------------------------------------------------
+
+    call test
+    .db "in a,(c)"
+    .db 0
+
+    call expectOps
+    .db IN_, reg_ , A_, reg_ | indirect_ , C_
+
+    ; ------------------------------------------------------------
+
     call test
     .db "ld a,(ix + 0)"
     .db 0
 
-    call expectOpData
+    call expectOps
     .db LD_, reg_ , A_, rp_ | indirect_ |index_ , IX_
 
     ; ------------------------------------------------------------
 
-    call describe
-    .cstr "parse opcode with a reg operand, an rp indirect operand"
-    
     call test
     .db "ld a,(hl)"
     .db 0
 
-    call expectOpData
+    call expectOps
     .db LD_, reg_ , A_, rp_ | indirect_, HL_
 
     ; ------------------------------------------------------------
 
-    call describe
-    .cstr "parse opcode with a flag operand, an immediate operand"
-    
+    call test
+    .db "ret c"
+    .db 0
+
+    call expectOps
+    .db RET_, flag_, CF_, -1, -1
+
+    ; ------------------------------------------------------------
+
     call test
     .db "jp nz,0"
     .db 0
 
-    call expectOpData
+    call expectOps
     .db JP_, flag_, NZ_, immed_, -1
 
     ; ------------------------------------------------------------
 
-
-    call describe
-    .cstr "parse opcode with an immediate operand"
-    
     call test
     .db "jp 0"
     .db 0
 
-    call expectOpData
+    call expectOps
     .db JP_, -1, -1, immed_, -1
 
     ; ------------------------------------------------------------
 
-    call describe
-    .cstr "parse opcode without operands"
-    
     call test
     .db "halt"
     .db 0
 
-    call expectOpData
+    call expectOps
     .db HALT_, -1, -1, -1, -1
 
     ; ------------------------------------------------------------
 
-    call describe
-    .cstr "It should do nothing"
-    
     call test
     .db 0
 
@@ -105,7 +110,7 @@ testsStart:
     ; .db 01,$76
 
     call print 
-    .cstr "\r\nDone!"
+    .pstr "\r\nDone!"
     
     halt
 

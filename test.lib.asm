@@ -2,12 +2,15 @@
 ; Test variables
 ; *****************************************************************************
 
+emptyStr:
+    .pstr ""
+
 tbDesc:
-    dw 0                ; Address of the description
+    dw emptyStr             ; Address of the description
 tbText:
-    dw 0                ; Address of the test text
+    dw 0                    ; Address of the test text
 tbPtr:
-    dw 0                ; Pointer to the current position in the test text
+    dw 0                    ; Pointer to the current position in the test text
 
 ; *****************************************************************************
 ; Routine: describe
@@ -27,9 +30,8 @@ tbPtr:
 
 describe:
     pop hl                    ; Retrieve the return address (address of the description string)
-    ld (tbDesc),hl           ; Store the address in tbDesc
-    call skipZStr             ; Skip the description string
-    inc hl                    ; Move to the next byte after the null terminator
+    ld (tbDesc),hl            ; Store the address in tbDesc
+    call skipStr              ; Skip the description string
     jp (hl)                   ; Jump to the address specified by the next byte
 
 ; *****************************************************************************
@@ -49,15 +51,15 @@ describe:
 ; *****************************************************************************
 
 test:
-    pop hl                    ; Retrieve the return address (address of the test text)
-    ld (tbText),hl           ; Store the address in tbText
-    ld (tbPtr),hl            ; Initialize tbPtr with the address of the test text
-    call skipZStr             ; Skip the test text string
-    inc hl                    ; Move to the next byte after the null terminator
-    push hl                   ; push new return address    
-    call init                 ; Initialize the environment
-    ld hl,testGetCharImpl    ; Load the address of testGetCharImpl
-    ld (GETCVEC),hl          ; Set the GETCVEC to point to testGetCharImpl
+    pop hl                      ; Retrieve the return address (address of the test text)
+    ld (tbText),hl              ; Store the address in tbText
+    ld (tbPtr),hl               ; Initialize tbPtr with the address of the test text
+    call skipZStr               ; Skip the test text string
+    inc hl                      ; Move to the next byte after the null terminator
+    push hl                     ; push new return address    
+    call init                   ; Initialize the environment
+    ld hl,testGetCharImpl       ; Load the address of testGetCharImpl
+    ld (GETCVEC),hl             ; Set the GETCVEC to point to testGetCharImpl
     jp statementList        
 
 ; *****************************************************************************
@@ -86,13 +88,13 @@ expect:
 
 expect1:
     call print                ; Print the failure message
-    .cstr "Failed!"
+    .pstr "Failed!"
     ld hl,(tbText)           ; Load the address of the test text
     call printZStr            ; Print the test text
     halt                      ; Halt the program
 
 ; *****************************************************************************
-; Routine: expectOpData
+; Routine: expectOps
 ; 
 ; Purpose:
 ;    Validate the sequence of opcode and operands against expected values.
@@ -109,28 +111,31 @@ expect1:
 ;    A,DE,HL
 ; *****************************************************************************
 
-expectOpData:
+expectOps:
     call crlf
-    pop de                           ; Load DE with the return address pointing to the actual opcode/operand sequence
-    ld hl,vOpcode                    ; Load HL with the address of the expected opcode/operand sequence
+    pop de                              ; Load DE with the return address pointing to the actual opcode/operand sequence
+    ld hl,vOpcode                       ; Load HL with the address of the expected opcode/operand sequence
     
-    call expectOpItem                ; Compare actual and expected opcode
-    .cstr "Wrong opcode"             ; Error message if the opcode does not match
+    call expectOpItem                   ; Compare actual and expected opcode
+    .cstr "Wrong opcode"                ; Error message if the opcode does not match
     
-    call expectOpItem                ; Compare actual and expected first operand
-    .cstr "Wrong operand type 1"          ; Error message if the first operand does not match
+    call expectOpItem                   ; Compare actual and expected first operand
+    .cstr "Wrong operand type 1"        ; Error message if the first operand does not match
     
-    call expectOpItem                ; Compare actual and expected first operand
-    .cstr "Wrong operand value 1"          ; Error message if the first operand does not match
+    call expectOpItem                   ; Compare actual and expected first operand
+    .cstr "Wrong operand value 1"       ; Error message if the first operand does not match
     
-    call expectOpItem                ; Compare actual and expected second operand
-    .cstr "Wrong operand type 2"          ; Error message if the second operand does not match
+    call expectOpItem                   ; Compare actual and expected second operand
+    .cstr "Wrong operand type 2"        ; Error message if the second operand does not match
     
-    call expectOpItem                ; Compare actual and expected first operand
-    .cstr "Wrong operand value 2"          ; Error message if the first operand does not match
+    call expectOpItem                   ; Compare actual and expected first operand
+    .cstr "Wrong operand value 2"       ; Error message if the first operand does not match
 
+    ld hl,emptyStr                      ; set description to ""
+    ld (tbDesc),hl
+    
     ex de,hl
-    jp (hl)                          ; Jump to the address after expected op data
+    jp (hl)                             ; Jump to the address after expected op data
 
 ; *****************************************************************************
 ; Routine: expectOpItem
@@ -172,20 +177,20 @@ expectOpItem2:
     push hl                         ; save message
     call crlf
     ld hl,(tbDesc)                  ; Load the address of the test text
-    call printZStr                  ; Print the test description
+    call printStr                  ; Print the test description
     call crlf
     pop hl                          ; HL = expected message
     call printZStr                  ; Print the test description
     call crlf
     call crlf
     call print                      ; Print error messages if the bytes do not match
-    .cstr "Expected: "              ; Print "Expected"
+    .pstr "Expected: "              ; Print "Expected"
     pop hl
     ld a,(hl)                       ; Load the expected byte into A for printing
     call printHex2                  ; Print the expected byte in hexadecimal
     call crlf
     call print                      ; Print "Received"
-    .cstr "Actual: "
+    .pstr "Actual: "
     pop hl
     ld a,(hl)                       ; Load the actual byte into A for printing
     call printHex2                  ; Print the actual byte in hexadecimal
@@ -276,6 +281,58 @@ printHex3:
     jp putchar                      ; Jump to the putchar routine to display the character
 	
 ; *****************************************************************************
+; Routine: print
+; 
+; Purpose:
+;    Prints a null-terminated string starting from the address in HL.
+; 
+; Inputs:
+;    HL - Points to the start of the string to be printed
+; 
+; Outputs:
+;    None
+; 
+; Registers Destroyed:
+;    A, B
+; *****************************************************************************
+
+zprint:                           
+    ex (sp),hl                  ; Swap HL with the value on the stack to preserve HL
+    call printZStr              ; Call the routine to print the null-terminated string
+    inc hl                      ; Increment HL to skip the null terminator
+    ex (sp),hl                  ; Restore the original value of HL from the stack
+    ret                         ; Return to the caller
+
+; *****************************************************************************
+; Routine: printZStr
+; 
+; Purpose:
+;    Prints a null-terminated string stored in memory. 
+; 
+; Inputs:
+;    HL - Points to the start of the string to be printed
+; 
+; Outputs:
+;    None
+; 
+; Registers Destroyed:
+;    A,HL
+; *****************************************************************************
+
+printZStr:
+    jr printZStr2               ; Jump to the loop condition
+
+printZStr1:                            
+    call putchar                ; Print the current character
+    inc hl                      ; Move to the next character
+
+printZStr2:
+    ld a,(hl)                   ; Load the current character
+    or a                        ; Check if the character is null
+    jr nz,printZStr1            ; If not null,continue printing
+    ret                         ; Return when null character is encountered
+
+; *****************************************************************************
 ; Routine: skipZStr
 ; 
 ; Purpose:
@@ -303,3 +360,30 @@ skipZStr2:
     or a                        ; Check if the character is null
     jr nz,skipZStr1            ; If not null,continue to the next character
     ret                         ; Return when a null character is found
+
+; *****************************************************************************
+; Routine: skipStr
+; 
+; Purpose:
+;    Skips over a pascal string in memory,advancing the HL register
+;    to the character following the null terminator.
+; 
+; Inputs:
+;    HL - Points to the start of the string to skip.
+; 
+; Outputs:
+;    HL - Points to the character immediately after the string.
+; 
+; Registers Destroyed:
+;    A
+; *****************************************************************************
+
+skipStr:
+    ld a,(hl)                   ; a = length               
+    inc hl                      ; Move to the next character
+    add a,l                     ; hl += a
+    ld l,a
+    ld a,0
+    adc a,h
+    ld h,a
+    ret                         
